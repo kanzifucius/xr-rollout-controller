@@ -1,4 +1,7 @@
-# Aggregated ClusterRole: label additional per-XR-group ClusterRoles with
+# Aggregated ClusterRole bound to the controller ServiceAccount by
+# xr_aggregate_role_binding.yaml (same subject as manager-rolebinding, so
+# kustomize deploy and the e2e install grant it together). Label additional
+# per-XR-group ClusterRoles with
 # rollouts.platform.example.org/aggregate-to-rollout-controller=true so the
 # controller can get/list/watch/patch those XR types without wildcards.
 apiVersion: rbac.authorization.k8s.io/v1
@@ -6,7 +9,6 @@ kind: ClusterRole
 metadata:
   name: xr-rollout-controller-xr-access
   labels:
-    # Aggregate into the manager role via your kustomize/overlays as needed.
     app.kubernetes.io/name: xr-rollout-controller
 aggregationRule:
   clusterRoleSelectors:

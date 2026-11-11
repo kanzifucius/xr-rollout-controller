@@ -1,6 +1,16 @@
-# Example ValidatingAdmissionPolicy: only release-managers may add Approve/Resume
-# triggers, and two CompositionRollouts may not claim the same composition.
-# Adjust matchConditions / variables for your cluster's identity model.
+# Example ValidatingAdmissionPolicy.
+#
+# compositionrollout-guards restricts who may add Approve/Resume triggers and
+# requires a revision on Approve, Resume, and Abort. It has no paramKind, so it
+# is evaluated for every create and update, including the first rollout.
+#
+# compositionrollout-overlap rejects a CompositionRollout that claims a
+# composition already claimed by another one. ValidatingAdmissionPolicy CEL
+# cannot list arbitrary objects, so the binding passes every existing
+# CompositionRollout as params (selector: {}). parameterNotFoundAction Allow
+# admits the first rollout, when nothing is claimed yet. A request is denied
+# when any param overlaps. The controller still pauses on overlap at reconcile
+# time if admission is bypassed.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -34,3 +44,43 @@ metadata:
 spec:
   policyName: compositionrollout-guards
   validationActions: [Deny]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: compositionrollout-overlap
+spec:
+  failurePolicy: Fail
+  paramKind:
+    apiVersion: rollouts.platform.example.org/v1alpha1
+    kind: CompositionRollout
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["rollouts.platform.example.org"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["compositionrollouts"]
+  variables:
+    - name: sameObject
+      expression: object.metadata.name == params.metadata.name
+    - name: overlaps
+      expression: |
+        object.spec.compositions.exists(c,
+          params.spec.compositions.exists(p, p.name == c.name))
+  validations:
+    - expression: variables.sameObject || !variables.overlaps
+      message: "composition is already claimed by another CompositionRollout"
+      messageExpression: |
+        "composition is already claimed by CompositionRollout " + params.metadata.name
+      reason: Invalid
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: compositionrollout-overlap
+spec:
+  policyName: compositionrollout-overlap
+  validationActions: [Deny]
+  paramRef:
+    selector: {}
+    parameterNotFoundAction: Allow

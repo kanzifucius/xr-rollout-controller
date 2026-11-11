@@ -357,6 +357,10 @@ func (r *CompositionRolloutReconciler) patchCanaries(
 		}
 		if err := r.patchXRRevision(ctx, u, revName); err != nil {
 			metrics.IncUpdateErrors(cr.Name, target.Name, r.MetricsAggregateOnly)
+			if managers, conflict := ssaConflictingManagers(err); conflict {
+				r.pauseForPatchConflict(cr, target, state, managers)
+				return nil
+			}
 			return err
 		}
 		metrics.IncUpdates(cr.Name, target.Name, r.MetricsAggregateOnly)

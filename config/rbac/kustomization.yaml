@@ -27,3 +27,4 @@ resources:
 - compositionrollout_viewer_role.yaml
 
 - xr_aggregate_role.yaml
+- xr_aggregate_role_binding.yaml

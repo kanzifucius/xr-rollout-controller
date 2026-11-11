@@ -20,19 +20,14 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
-	"github.com/kanzifucius/xr-rollout-controller/internal/xp"
 )
 
 // FieldIndexCompositionName indexes CompositionRollout by spec.compositions[].name.
 const FieldIndexCompositionName = "spec.compositions"
-
-// FieldIndexXRCompositionRef indexes unstructured XRs by composition ref name.
-const FieldIndexXRCompositionRef = "spec.crossplane.compositionRef.name"
 
 func setupIndexes(mgr ctrl.Manager) error {
 	ctx := context.Background()
@@ -49,19 +44,8 @@ func setupIndexes(mgr ctrl.Manager) error {
 	}); err != nil {
 		return fmt.Errorf("index CompositionRollout: %w", err)
 	}
-
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &unstructured.Unstructured{}, FieldIndexXRCompositionRef, func(raw client.Object) []string {
-		u, ok := raw.(*unstructured.Unstructured)
-		if !ok {
-			return nil
-		}
-		name := xp.GetCompositionRefName(u)
-		if name == "" {
-			return nil
-		}
-		return []string{name}
-	}); err != nil {
-		return fmt.Errorf("index unstructured XR: %w", err)
-	}
+	// XR kinds are not one GVK. Indexing a typeless unstructured.Unstructured
+	// makes controller-runtime reject the object ("no kind") and the manager
+	// never starts. XR reads go through the dynamic client.
 	return nil
 }

@@ -37,16 +37,6 @@ func (r *CompositionRolloutReconciler) listRolloutsForComposition(ctx context.Co
 	return list.Items, nil
 }
 
-func (r *CompositionRolloutReconciler) patchXRRevision(ctx context.Context, u *unstructured.Unstructured, revName string) error {
-	patchBase := u.DeepCopy()
-	xp.SetCompositionRevisionRef(patchBase, revName)
-	opts := []client.PatchOption{client.FieldOwner(r.FieldManager)}
-	if r.ForceOwnership {
-		opts = append(opts, client.ForceOwnership)
-	}
-	return r.Patch(ctx, patchBase, client.Apply, opts...)
-}
-
 func (r *CompositionRolloutReconciler) evaluateCanaryPatchState(
 	_ context.Context,
 	cr *rolloutsv1alpha1.CompositionRollout,

@@ -19,9 +19,11 @@ package controller
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -54,19 +56,45 @@ var (
 )
 
 func (r *CompositionRolloutReconciler) setupStaticWatches(bld *builder.Builder) *builder.Builder {
-	rev := &unstructured.Unstructured{}
-	rev.SetGroupVersionKind(compositionRevisionGVK)
-	comp := &unstructured.Unstructured{}
-	comp.SetGroupVersionKind(compositionGVK)
+	if r.apiInstalled(compositionRevisionGVK) {
+		rev := &unstructured.Unstructured{}
+		rev.SetGroupVersionKind(compositionRevisionGVK)
+		bld = bld.Watches(rev, handler.EnqueueRequestsFromMapFunc(r.mapCompositionRevision), builder.WithPredicates(createOnlyPredicate()))
+	}
+	if r.apiInstalled(compositionGVK) {
+		comp := &unstructured.Unstructured{}
+		comp.SetGroupVersionKind(compositionGVK)
+		bld = bld.Watches(comp, handler.EnqueueRequestsFromMapFunc(r.mapComposition))
+	}
+	return bld
+}
 
-	return bld.
-		Watches(rev, handler.EnqueueRequestsFromMapFunc(r.mapCompositionRevision), builder.WithPredicates(predicate.Funcs{
-			CreateFunc:  func(e event.CreateEvent) bool { return true },
-			UpdateFunc:  func(e event.UpdateEvent) bool { return false },
-			DeleteFunc:  func(e event.DeleteEvent) bool { return false },
-			GenericFunc: func(e event.GenericEvent) bool { return false },
-		})).
-		Watches(comp, handler.EnqueueRequestsFromMapFunc(r.mapComposition))
+// apiInstalled reports whether the apiserver serves gvk. A missing API is
+// skipped so the manager can start before Crossplane is installed; a
+// discovery error other than "no match" still attempts the watch.
+func (r *CompositionRolloutReconciler) apiInstalled(gvk schema.GroupVersionKind) bool {
+	if r.Mapper == nil {
+		return true
+	}
+	_, err := r.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err == nil {
+		return true
+	}
+	if meta.IsNoMatchError(err) {
+		ctrl.Log.Info("skipping watch; API is not installed", "gvk", gvk.String())
+		return false
+	}
+	ctrl.Log.Error(err, "discovery failed while checking watch; attempting it anyway", "gvk", gvk.String())
+	return true
+}
+
+func createOnlyPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc:  func(event.CreateEvent) bool { return true },
+		UpdateFunc:  func(event.UpdateEvent) bool { return false },
+		DeleteFunc:  func(event.DeleteEvent) bool { return false },
+		GenericFunc: func(event.GenericEvent) bool { return false },
+	}
 }
 
 func (r *CompositionRolloutReconciler) mapCompositionRevision(ctx context.Context, obj client.Object) []reconcile.Request {
