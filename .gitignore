@@ -25,3 +25,10 @@ go.work
 *.swp
 *.swo
 *~
+
+# MkDocs build output
+/site/
+
+# Archify authoring candidates and delivery receipts. Published HTML stays under docs/architecture.
+.archify/
+docs/architecture/*.json

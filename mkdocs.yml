@@ -1,0 +1,120 @@
+# XR Rollout Controller documentation site (Material for MkDocs + mike versioning).
+site_name: XR Rollout Controller
+site_description: Canary rollouts of Crossplane CompositionRevisions onto Manual composite resources.
+site_url: https://kanzifucius.github.io/xr-rollout-controller/
+site_author: XR Rollout Controller maintainers
+repo_url: https://github.com/kanzifucius/xr-rollout-controller
+repo_name: kanzifucius/xr-rollout-controller
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; XR Rollout Controller contributors
+
+# Trailing slash required for mike version switching (Material docs).
+docs_dir: docs
+site_dir: site
+
+# Design notes stay in the repository. They are not pages on the versioned site.
+exclude_docs: |
+  xr-rollout-controller-plan.md
+  IMPLEMENTATION.md
+
+theme:
+  name: material
+  language: en
+  palette:
+    # Follow OS preference first, then explicit light / slate.
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to system preference
+  font:
+    text: Sora
+    code: IBM Plex Mono
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - search.suggest
+    - search.highlight
+    - search.share
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/source-branch
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  # Re-declared because other plugins are listed; Material search is client-side (lunr).
+  - search:
+      lang: en
+      separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
+  - mike:
+      # Symlink aliases (latest → 1.2.3); falls back to copy on platforms without symlink support.
+      alias_type: symlink
+      canonical_version: latest
+      version_selector: true
+
+extra:
+  version:
+    provider: mike
+    default: latest
+    alias: true
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kanzifucius/xr-rollout-controller
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - CompositionRollout:
+      - The CRD: crd.md
+      - Canary and promotion: canary.md
+      - Environment gate: environment.md
+      - Triggers: triggers.md
+  - Architecture:
+      - architecture/index.md
+      - Runtime diagram: architecture/runtime.md
+      - Rollout flow: architecture/workflow.md
+      - Approve sequence: architecture/sequence.md
+  - Releases: releases.md
+  - Contributing: contributing.md
