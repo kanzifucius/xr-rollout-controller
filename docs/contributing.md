@@ -4,6 +4,8 @@ Source and pull requests live in the GitHub repository:
 
 **[https://github.com/kanzifucius/xr-rollout-controller](https://github.com/kanzifucius/xr-rollout-controller)**
 
+Build, test, lint, run, and opening a pull request are in [CONTRIBUTING.md](https://github.com/kanzifucius/xr-rollout-controller/blob/main/CONTRIBUTING.md). This page is the documentation site.
+
 ## Local checks
 
 ```bash
