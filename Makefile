@@ -76,7 +76,11 @@ test-e2e: manifests generate fmt vet ## Run the e2e tests. Expected an isolated 
 		echo "No Kind cluster is running. Please start a Kind cluster before running the e2e tests."; \
 		exit 1; \
 	}
-	go test ./test/e2e/ -v -ginkgo.v
+	go test ./test/e2e/ -v -ginkgo.v -timeout 60m $(E2E_ARGS)
+
+.PHONY: test-e2e-scenarios
+test-e2e-scenarios: ## Run the preventative scenario e2e specs on an existing Kind cluster.
+	$(MAKE) test-e2e E2E_ARGS="-ginkgo.label-filter=scenarios"
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

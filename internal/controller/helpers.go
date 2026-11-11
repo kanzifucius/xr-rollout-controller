@@ -38,7 +38,11 @@ func (r *CompositionRolloutReconciler) listRolloutsForComposition(ctx context.Co
 }
 
 func (r *CompositionRolloutReconciler) patchXRRevision(ctx context.Context, u *unstructured.Unstructured, revName string) error {
-	patchBase := u.DeepCopy()
+	// Apply only the revision name. A full-object apply would claim every other field.
+	patchBase := &unstructured.Unstructured{}
+	patchBase.SetGroupVersionKind(u.GroupVersionKind())
+	patchBase.SetNamespace(u.GetNamespace())
+	patchBase.SetName(u.GetName())
 	xp.SetCompositionRevisionRef(patchBase, revName)
 	opts := []client.PatchOption{client.FieldOwner(r.FieldManager)}
 	if r.ForceOwnership {
@@ -106,7 +110,7 @@ func (r *CompositionRolloutReconciler) evaluateHealth(
 	state *rolloutsv1alpha1.CompositionRolloutState,
 	cr *rolloutsv1alpha1.CompositionRollout,
 	managed, pending []unstructured.Unstructured,
-) (canaryHealthy bool, soakPassed bool, waveFailed bool) {
+) (canaryHealthy bool, soakPassed bool, soakFailed bool, waveFailed bool) {
 	canarySet := map[string]struct{}{}
 	for i := range state.Canary.Selected {
 		ref := state.Canary.Selected[i]
@@ -142,6 +146,7 @@ func (r *CompositionRolloutReconciler) evaluateHealth(
 		state.Canary.Healthy = healthy
 		state.Canary.Unhealthy = unhealthy
 		canaryHealthy = !failed && unhealthy == 0
+		soakFailed = failed
 		if state.SoakEndsAt != nil && time.Now().After(state.SoakEndsAt.Time) && !failed {
 			soakPassed = true
 		}
@@ -165,7 +170,37 @@ func (r *CompositionRolloutReconciler) evaluateHealth(
 		_ = pending
 		waveFailed = failed || unhealthy > cr.Spec.Waves.MaxUnhealthy
 	}
-	return canaryHealthy, soakPassed, waveFailed
+	return canaryHealthy, soakPassed, soakFailed, waveFailed
+}
+
+func targetRevisionMissing(ctx context.Context, r *CompositionRolloutReconciler, composition string, state *rolloutsv1alpha1.CompositionRolloutState) (bool, error) {
+	if state.TargetRevision.Name == "" || !phaseTracksTargetRevision(state.Phase) {
+		return false, nil
+	}
+	revMap, err := buildRevisionMap(ctx, r, composition)
+	if err != nil {
+		return false, err
+	}
+	_, ok := revMap[state.TargetRevision.Name]
+	return !ok, nil
+}
+
+func phaseTracksTargetRevision(phase rolloutsv1alpha1.RolloutPhase) bool {
+	switch phase {
+	case rolloutsv1alpha1.PhaseCanarying,
+		rolloutsv1alpha1.PhaseSoaking,
+		rolloutsv1alpha1.PhaseAwaitingApproval,
+		rolloutsv1alpha1.PhasePromoting:
+		return true
+	case rolloutsv1alpha1.PhaseIdle,
+		rolloutsv1alpha1.PhasePaused,
+		rolloutsv1alpha1.PhaseCompleted,
+		rolloutsv1alpha1.PhaseAborted:
+		return false
+	default:
+		_ = impossiblePhase(phase)
+		return false
+	}
 }
 
 func (r *CompositionRolloutReconciler) timingRequeue(state *rolloutsv1alpha1.CompositionRolloutState) time.Duration {

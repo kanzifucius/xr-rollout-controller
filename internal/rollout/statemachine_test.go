@@ -243,6 +243,59 @@ func TestTransitionSupersede(t *testing.T) {
 	}
 }
 
+func TestTransitionSoakFailedPauses(t *testing.T) {
+	t.Parallel()
+	out := Transition(Input{
+		Phase:      rolloutsv1alpha1.PhaseSoaking,
+		SoakFailed: true,
+	})
+	if out.Phase != rolloutsv1alpha1.PhasePaused || out.PauseReason == nil {
+		t.Fatalf("out = %#v", out)
+	}
+	if out.PauseReason.Reason != rolloutsv1alpha1.PauseReasonCanaryUnhealthy {
+		t.Fatalf("out = %#v", out)
+	}
+	if out.PhaseBeforePause != rolloutsv1alpha1.PhaseSoaking {
+		t.Fatalf("phaseBeforePause = %s", out.PhaseBeforePause)
+	}
+}
+
+func TestTransitionTargetRevisionMissing(t *testing.T) {
+	t.Parallel()
+	out := Transition(Input{
+		Phase:                 rolloutsv1alpha1.PhaseAwaitingApproval,
+		TargetRevisionMissing: true,
+		TargetRevisionName:    "comp-v2",
+	})
+	if out.Phase != rolloutsv1alpha1.PhasePaused || out.PauseReason == nil {
+		t.Fatalf("out = %#v", out)
+	}
+	if out.PauseReason.Reason != rolloutsv1alpha1.PauseReasonTargetRevisionGone {
+		t.Fatalf("reason = %s", out.PauseReason.Reason)
+	}
+
+	idle := Transition(Input{
+		Phase:                 rolloutsv1alpha1.PhaseIdle,
+		TargetRevisionMissing: true,
+	})
+	if idle.Phase != rolloutsv1alpha1.PhaseIdle {
+		t.Fatalf("idle = %#v", idle)
+	}
+
+	abort := Transition(Input{
+		Phase:                 rolloutsv1alpha1.PhasePaused,
+		TargetRevisionMissing: true,
+		TargetRevisionName:    "comp-v2",
+		Trigger: &rolloutsv1alpha1.RolloutTrigger{
+			Action:   rolloutsv1alpha1.TriggerAbort,
+			Revision: "comp-v2",
+		},
+	})
+	if abort.Phase != rolloutsv1alpha1.PhaseAborted || abort.TriggerOutcome != TriggerOutcomeApplied {
+		t.Fatalf("abort = %#v", abort)
+	}
+}
+
 func TestTransitionTerminalToIdle(t *testing.T) {
 	t.Parallel()
 	aborted := Transition(Input{Phase: rolloutsv1alpha1.PhaseAborted})

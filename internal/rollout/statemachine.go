@@ -4,24 +4,26 @@ import rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alph
 
 // Input is a snapshot of per-composition rollout state fed into Transition.
 type Input struct {
-	Phase                rolloutsv1alpha1.RolloutPhase
-	Suspend              bool
-	AutoStart            bool
-	OnNewRevision        rolloutsv1alpha1.NewRevisionPolicy
-	PromotionPolicy      rolloutsv1alpha1.PromotionPolicy
-	LatestRevisionName   string
-	LatestRevisionNumber int64
-	TargetRevisionName   string
-	TargetRevisionNumber int64
-	AbortedRevision      string
-	CanaryAllPatched     bool
-	CanaryHealthy        bool
-	CanaryFailed         bool
-	SoakPassed           bool
-	WavesComplete        bool
-	WaveFailed           bool
-	Trigger              *rolloutsv1alpha1.RolloutTrigger
-	PhaseBeforePause     rolloutsv1alpha1.RolloutPhase
+	Phase                 rolloutsv1alpha1.RolloutPhase
+	Suspend               bool
+	AutoStart             bool
+	OnNewRevision         rolloutsv1alpha1.NewRevisionPolicy
+	PromotionPolicy       rolloutsv1alpha1.PromotionPolicy
+	LatestRevisionName    string
+	LatestRevisionNumber  int64
+	TargetRevisionName    string
+	TargetRevisionNumber  int64
+	AbortedRevision       string
+	CanaryAllPatched      bool
+	CanaryHealthy         bool
+	CanaryFailed          bool
+	SoakPassed            bool
+	SoakFailed            bool
+	WavesComplete         bool
+	WaveFailed            bool
+	TargetRevisionMissing bool
+	Trigger               *rolloutsv1alpha1.RolloutTrigger
+	PhaseBeforePause      rolloutsv1alpha1.RolloutPhase
 }
 
 // Output is the pure state-machine decision for one reconcile step.
@@ -63,6 +65,10 @@ func Transition(in Input) Output {
 		if handled, trigOut := applyTrigger(in); handled {
 			return trigOut
 		}
+	}
+
+	if in.TargetRevisionMissing && isMidRollout(in.Phase) {
+		return targetRevisionGoneOutput(in)
 	}
 
 	if newerRevisionPending(in) && in.OnNewRevision == rolloutsv1alpha1.NewRevisionRestart && isMidRollout(in.Phase) {
@@ -136,6 +142,17 @@ func pauseReasonCanaryUnhealthy() *rolloutsv1alpha1.PauseReason {
 func pauseReasonStabilisationTimeout() *rolloutsv1alpha1.PauseReason {
 	return &rolloutsv1alpha1.PauseReason{
 		Reason: rolloutsv1alpha1.PauseReasonStabilisationTimeout,
+	}
+}
+
+func targetRevisionGoneOutput(in Input) Output {
+	return Output{
+		Phase: rolloutsv1alpha1.PhasePaused,
+		PauseReason: &rolloutsv1alpha1.PauseReason{
+			Reason:  rolloutsv1alpha1.PauseReasonTargetRevisionGone,
+			Message: "target composition revision no longer exists",
+		},
+		PhaseBeforePause: in.Phase,
 	}
 }
 
@@ -328,6 +345,12 @@ func soakingProgress(in Input, out Output) Output {
 	if in.CanaryFailed {
 		out.Phase = rolloutsv1alpha1.PhasePaused
 		out.PauseReason = pauseReasonStabilisationTimeout()
+		out.PhaseBeforePause = rolloutsv1alpha1.PhaseSoaking
+		return out
+	}
+	if in.SoakFailed {
+		out.Phase = rolloutsv1alpha1.PhasePaused
+		out.PauseReason = pauseReasonCanaryUnhealthy()
 		out.PhaseBeforePause = rolloutsv1alpha1.PhaseSoaking
 		return out
 	}
