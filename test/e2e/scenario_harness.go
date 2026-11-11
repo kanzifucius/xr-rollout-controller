@@ -394,7 +394,9 @@ func assertControllerFields(raw []byte, wrote bool) {
 		Expect(paths).To(BeEmpty(), "controller field manager owned %v", paths)
 		return
 	}
-	Expect(paths).To(ContainElement(allowedRevisionField))
+	// Crossplane updates the XR after the rollout patch and can take the field
+	// back. An empty manager entry is fine. Anything still owned must be the
+	// revision name or the object identity.
 	for _, path := range paths {
 		switch path {
 		case allowedRevisionField, "metadata.name", "metadata.namespace", "apiVersion", "kind":
@@ -432,17 +434,23 @@ func setXRConditions(ns, name, ready string) {
 	runOrFail("kubectl", "patch", xrResource, name, "-n", ns, "--subresource=status", "--type=merge", "-p", body)
 }
 
-func ownRevision(ns, name, rev string) {
+func ownRevision(ns, name, composition, rev string) {
+	// Keep Manual and the composition ref in the apply. Omitting them lets
+	// CRD defaulting turn the policy into Automatic and drop the XR from the fleet.
 	doc := fmt.Sprintf(`apiVersion: %s/%s
 kind: %s
 metadata:
   name: %s
   namespace: %s
 spec:
+  marker: keep-%s
   crossplane:
+    compositionUpdatePolicy: Manual
+    compositionRef:
+      name: %s
     compositionRevisionRef:
       name: %s
-`, xrGroup, xrVersion, xrKind, name, ns, rev)
+`, xrGroup, xrVersion, xrKind, name, ns, name, composition, rev)
 	path := writeTemp(doc)
 	defer func() { _ = os.Remove(path) }()
 	runOrFail("kubectl", "apply", "--server-side", "--field-manager=gitops", "--force-conflicts", "-f", path)
@@ -543,7 +551,11 @@ func createPinnedXR(f seededFleet, name, rev string) {
 	doc := xrYAML(f, xr)
 	doc = strings.Replace(doc, "compositionRef:\n      name: "+f.composition+"\n",
 		"compositionRef:\n      name: "+f.composition+"\n    compositionRevisionRef:\n      name: "+rev+"\n", 1)
-	applyYAML(doc)
+	path := writeTemp(doc)
+	defer func() { _ = os.Remove(path) }()
+	// Field manager crossplane matches the owner the controller is allowed to
+	// take. A client-side apply would conflict as kubectl-client-side-apply.
+	runOrFail("kubectl", "apply", "--server-side", "--field-manager=crossplane", "--force-conflicts", "-f", path)
 	setXRConditions(f.ns, name, "True")
 }
 

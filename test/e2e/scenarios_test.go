@@ -230,7 +230,7 @@ func badCanaryResumeAbort() {
 
 func ssaConflictPauses() {
 	f := seedFleet("ssa-conflict", []xrSpec{{name: "a", canary: true}, {name: "b"}})
-	ownRevision(f.ns, "a", f.source)
+	ownRevision(f.ns, "a", f.composition, f.source)
 	before := snapshotFleet(f)
 	applyRollout(f, rolloutSpec{strategy: string(rolloutsv1alpha1.CanaryStrategyLabelSelector)})
 	waitPaused(f, rolloutsv1alpha1.PauseReasonPatchFailed)
