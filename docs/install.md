@@ -2,7 +2,7 @@
 
 Releases publish a multi-arch controller image and a Helm chart to GHCR. Both packages are public: pull and install them without a registry login or an image pull secret.
 
-Chart `--version` is SemVer **without** a leading `v`. Image tags **keep** `v`.
+Chart `--version` is SemVer **without** a leading `v`. Image tags **keep** `v`. A pre-release chart keeps the suffix, for example `1.2.3-rc.1`.
 
 ```bash
 helm install xr-rollout-controller \
@@ -21,7 +21,8 @@ Images are built for `linux/amd64` and `linux/arm64`.
 
 | Tag | Published when |
 |-----|----------------|
-| `vX.Y.Z` | A semver tag `vX.Y.Z` is pushed |
+| `vX.Y.Z` | A stable semver tag is pushed, including optional `+build` metadata. The image is that tag only. |
+| `vX.Y.Z-<pre>` | A pre-release tag such as `v1.2.3-rc.1` or `v1.2.3-alpha.1` is pushed. The image is that tag only. `latest` is left unchanged. |
 | `<short-sha>` | A commit is pushed to `main` (7-character SHA) |
 | `latest` | A commit is pushed to `main` |
 

@@ -12,6 +12,9 @@ jobs:
       - name: Clone the code
         uses: actions/checkout@v4
 
+      - name: Check release tag classification
+        run: bash hack/release-tag_test.sh
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:

@@ -1,8 +1,15 @@
 # Publishes the controller image to GHCR.
 # Pushes to main tag the image with the short SHA and latest.
-# Semver tag pushes (vMAJOR.MINOR.PATCH) tag the image with the git tag, then
-# attach kustomize release manifests to a GitHub Release and push the Helm
-# chart to oci://ghcr.io/kanzifucius/charts.
+# A tag push must match vMAJOR.MINOR.PATCH with an optional pre-release
+# and optional build metadata. hack/release-tag.sh classifies it:
+#   stable (v1.2.3, v1.2.3+sha): image tag is the git tag only; GitHub
+#     Release with generated notes; Helm chart version without the leading v.
+#   pre-release (v1.2.3-rc.1, v1.2.3-alpha.1, optional +build): image tag is
+#     the git tag only (not latest); GitHub Release is a prerelease
+#     (--prerelease, --latest=false) with the same notes and assets; Helm
+#     chart version is the tag without v and is not retagged onto a stable
+#     version or latest.
+# Docs for the same tag are published by docs.yml, not this file.
 name: Release
 
 on:
@@ -33,19 +40,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check release tag classification
+        run: bash hack/release-tag_test.sh
+
       - name: Resolve image tags
         id: meta
         run: |
-          image="ghcr.io/kanzifucius/xr-rollout-controller"
+          set -euo pipefail
+          # shellcheck source=hack/release-tag.sh
+          source hack/release-tag.sh
+          image="${RELEASE_IMAGE_REPOSITORY}"
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
-              echo "::error::Tag ${GITHUB_REF_NAME} is not a vMAJOR.MINOR.PATCH semver tag"
-              exit 1
-            fi
-            tags="${image}:${GITHUB_REF_NAME}"
+            classify_release_tag "${GITHUB_REF_NAME}"
+            # Git tag only. The function refuses to add latest.
+            tags="$(release_image_tag_list "${image}")"
+            echo "Image tag ${tags} (kind ${RELEASE_KIND})"
           else
             short="${GITHUB_SHA:0:7}"
             tags="${image}:${short}"$'\n'"${image}:latest"
+            echo "Image tags ${short} and latest"
           fi
           {
             echo "image=${image}"
@@ -103,13 +116,6 @@ jobs:
         with:
           version: v3.22.1
 
-      - name: Check semver tag
-        run: |
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} is not a vMAJOR.MINOR.PATCH semver tag"
-            exit 1
-          fi
-
       - name: Generate release manifests
         run: |
           image="${{ needs.image.outputs.image }}:${GITHUB_REF_NAME}"
@@ -122,22 +128,38 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+          # shellcheck source=hack/release-tag.sh
+          source hack/release-tag.sh
+          classify_release_tag "${GITHUB_REF_NAME}"
+          release_github_create_flags
+          release_github_edit_flags
+          echo "GitHub Release ${GITHUB_REF_NAME} kind ${RELEASE_KIND}"
           assets=(
             dist/install.yaml
             dist/compositionrollouts.crd.yaml
           )
           if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber --repo "${GITHUB_REPOSITORY}"
+            if ((${#GITHUB_EDIT_FLAGS[@]} > 0)); then
+              gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" "${GITHUB_EDIT_FLAGS[@]}"
+            fi
           else
             gh release create "${GITHUB_REF_NAME}" "${assets[@]}" \
               --repo "${GITHUB_REPOSITORY}" \
               --title "${GITHUB_REF_NAME}" \
-              --generate-notes
+              --generate-notes \
+              "${GITHUB_CREATE_FLAGS[@]}"
           fi
 
       - name: Lint and package Helm chart
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          set -euo pipefail
+          # shellcheck source=hack/release-tag.sh
+          source hack/release-tag.sh
+          classify_release_tag "${GITHUB_REF_NAME}"
+          version="$(release_chart_version)"
+          echo "Packaging chart ${version} (kind ${RELEASE_KIND}) appVersion ${GITHUB_REF_NAME}"
           helm lint charts/xr-rollout-controller
           helm template xr-rollout-controller charts/xr-rollout-controller --include-crds >/dev/null
           helm package charts/xr-rollout-controller \
@@ -153,8 +175,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          set -euo pipefail
+          # shellcheck source=hack/release-tag.sh
+          source hack/release-tag.sh
+          classify_release_tag "${GITHUB_REF_NAME}"
+          version="$(release_chart_version)"
           chart="dist/xr-rollout-controller-${version}.tgz"
+          # This version only. Do not copy the OCI tag onto a stable version or latest.
+          echo "Pushing chart version ${version} only"
           echo "${GITHUB_TOKEN}" | helm registry login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
           set +e
           push_log="$(helm push "${chart}" oci://ghcr.io/kanzifucius/charts 2>&1)"

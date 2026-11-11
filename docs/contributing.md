@@ -29,7 +29,7 @@ Site layout (Material tabs): **Home → Install → CompositionRollout → Archi
 - Architecture diagrams: standalone HTML under `docs/architecture/` plus caption pages that embed them
 - Versioned deploys use [mike](https://github.com/jimporter/mike) on the `gh-pages` branch, which GitHub Pages serves (see `.github/workflows/docs.yml`)
 
-Prefer editing Markdown under `docs/` and `mkdocs.yml` on a feature branch. CI builds the site on pull requests that touch the docs toolchain, and publishes a version on pushes to `main` and on `v*` tags.
+Prefer editing Markdown under `docs/` and `mkdocs.yml` on a feature branch. CI builds the site on pull requests that touch the docs toolchain, and publishes a version on pushes to `main` and on semver tags, including pre-releases. A pre-release publishes its own version and leaves the `latest` alias on the last stable version.
 
 Design notes that are not part of the published site:
 

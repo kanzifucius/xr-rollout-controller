@@ -88,8 +88,9 @@ The longer design note stays in the repository: [`docs/xr-rollout-controller-pla
 
 | Version / alias | Meaning |
 |-----------------|---------|
-| `latest` | Docs for the newest **non-prerelease** SemVer tag (default after the first release) |
-| `1.2.3` | Immutable docs for tag `v1.2.3` (the leading `v` is removed) |
+| `latest` | Docs for the newest stable SemVer tag (default after the first release). Pre-releases do not move this alias. |
+| `1.2.3` | Immutable docs for stable tag `v1.2.3` (the leading `v` is removed) |
+| `1.2.3-rc.1` | Docs for a pre-release tag such as `v1.2.3-rc.1`. `latest` stays on the last stable version. |
 | `dev` | Docs from the tip of `main` (may change between releases) |
 
 Expected URL: [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/).

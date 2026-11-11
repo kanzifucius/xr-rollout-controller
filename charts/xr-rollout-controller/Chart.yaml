@@ -3,7 +3,8 @@ name: xr-rollout-controller
 description: Rolls out Crossplane CompositionRevision upgrades to composite resources.
 type: application
 # Development chart version. The release workflow repackages with --version
-# taken from the git tag (the leading v is stripped).
+# taken from the git tag (the leading v is stripped), including a pre-release
+# suffix such as 1.2.3-rc.1. Pre-releases are not published as latest.
 version: 0.1.0
 # In-repo default so a template points at the image published from main.
 # Release packages override this with the git tag, for example v1.2.3.

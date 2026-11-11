@@ -81,7 +81,8 @@ Images are built for `linux/amd64` and `linux/arm64` from the repository Dockerf
 
 | Tag | Published when |
 |-----|----------------|
-| `vX.Y.Z` | A semver tag `vX.Y.Z` is pushed |
+| `vX.Y.Z` | A stable semver tag is pushed, including optional `+build` metadata. The image is that tag only. |
+| `vX.Y.Z-<pre>` | A pre-release tag such as `v1.2.3-rc.1` or `v1.2.3-alpha.1` is pushed. The image is that tag only. `latest` is left unchanged. |
 | `<short-sha>` | A commit is pushed to `main` (7-character SHA) |
 | `latest` | A commit is pushed to `main` |
 
