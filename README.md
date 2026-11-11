@@ -27,11 +27,9 @@ Controller flags (set on the Deployment):
 
 ## Install
 
-Releases publish a multi-arch controller image and a Helm chart to GHCR. This repository is private, so those packages are private: log in with a GitHub token that has `read:packages` before pulling the image or installing the chart.
+Releases publish a multi-arch controller image and a Helm chart to GHCR. The image and chart are public, so pull and install them without a registry login or an image pull secret.
 
 ```bash
-echo "$GITHUB_TOKEN" | helm registry login ghcr.io --username "$GITHUB_USERNAME" --password-stdin
-
 helm install xr-rollout-controller \
   oci://ghcr.io/kanzifucius/charts/xr-rollout-controller \
   --version 1.2.3 \
@@ -52,21 +50,14 @@ Replace `1.2.3` with the chart version. That is the git tag with the leading `v`
 | `metrics.serviceMonitor.enabled` | `false` | Prometheus Operator ServiceMonitor. Requires the metrics Service |
 | `admissionPolicy.enabled` | `true` | Example ValidatingAdmissionPolicy |
 
-The image reference inside a published chart is `ghcr.io/kanzifucius/xr-rollout-controller:vX.Y.Z`. On a private package, create an image pull secret and pass it to the chart:
+The image reference inside a published chart is `ghcr.io/kanzifucius/xr-rollout-controller:vX.Y.Z`.
 
 ```bash
-kubectl create secret docker-registry ghcr \
-  --namespace xr-rollout-controller-system \
-  --docker-server=ghcr.io \
-  --docker-username="$GITHUB_USERNAME" \
-  --docker-password="$GITHUB_TOKEN"
-
 helm upgrade --install xr-rollout-controller \
   oci://ghcr.io/kanzifucius/charts/xr-rollout-controller \
   --version 1.2.3 \
   --namespace xr-rollout-controller-system \
-  --set environment=prod \
-  --set imagePullSecrets[0].name=ghcr
+  --set environment=prod
 ```
 
 Approve and Resume triggers are rejected unless the caller is in the group `rollouts.platform.example.org:release-managers`. Set `admissionPolicy.enabled=false` to skip that policy.
@@ -86,7 +77,6 @@ Images are built for `linux/amd64` and `linux/arm64` from the repository Dockerf
 | `latest` | A commit is pushed to `main` |
 
 ```bash
-echo "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_USERNAME" --password-stdin
 docker pull ghcr.io/kanzifucius/xr-rollout-controller:latest
 ```
 
@@ -96,7 +86,7 @@ Each GitHub Release also attaches `install.yaml` (from `make build-installer`) a
 
 `install.yaml` is built from `config/`. In that tree, `aggregationRule` on the XR ClusterRole is nested under `metadata`, which the API server rejects. The Helm chart places `aggregationRule` at the top level of the ClusterRole. Prefer the chart until that manifest is corrected.
 
-Release assets are private with the repository, so download them with `gh` (or another authenticated client) and then apply the file:
+Release assets are public with the repository. Download one and apply it:
 
 ```bash
 gh release download v1.2.3 --repo kanzifucius/xr-rollout-controller --pattern install.yaml
