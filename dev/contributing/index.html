@@ -1024,6 +1024,7 @@
 <h1 id="contributing">Contributing<a class="headerlink" href="#contributing" title="Permanent link">&para;</a></h1>
 <p>Source and pull requests live in the GitHub repository:</p>
 <p><strong><a href="https://github.com/kanzifucius/xr-rollout-controller">https://github.com/kanzifucius/xr-rollout-controller</a></strong></p>
+<p>Build, test, lint, run, and opening a pull request are in <a href="https://github.com/kanzifucius/xr-rollout-controller/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a>. This page is the documentation site.</p>
 <h2 id="local-checks">Local checks<a class="headerlink" href="#local-checks" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span><span class="nb">test</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>make<span class="w"> </span>docker-build<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span>xr-rollout-controller:dev
@@ -1038,7 +1039,7 @@
 <ul>
 <li>Theme tokens and Archify iframe styles: <code>docs/stylesheets/extra.css</code></li>
 <li>Architecture diagrams: standalone HTML under <code>docs/architecture/</code> plus caption pages that embed them</li>
-<li>Versioned deploys use <a href="https://github.com/jimporter/mike">mike</a> on the <code>gh-pages</code> branch (see <code>.github/workflows/docs.yml</code>)</li>
+<li>Versioned deploys use <a href="https://github.com/jimporter/mike">mike</a> on the <code>gh-pages</code> branch, which GitHub Pages serves (see <code>.github/workflows/docs.yml</code>)</li>
 </ul>
 <p>Prefer editing Markdown under <code>docs/</code> and <code>mkdocs.yml</code> on a feature branch. CI builds the site on pull requests that touch the docs toolchain, and publishes a version on pushes to <code>main</code> and on <code>v*</code> tags.</p>
 <p>Design notes that are not part of the published site:</p>

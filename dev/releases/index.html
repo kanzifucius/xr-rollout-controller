@@ -1036,14 +1036,14 @@
 </tr>
 <tr>
 <td>Docs version</td>
-<td>GitHub Pages, <code>gh-pages</code> branch</td>
+<td>GitHub Pages (mike tree on <code>gh-pages</code>)</td>
 <td><code>1.2.3</code>, and alias <code>latest</code> when the tag has no <code>-</code></td>
 </tr>
 </tbody>
 </table>
 <p>Pushes to <code>main</code> publish the image as the short SHA and as <code>latest</code>. They do not push a Helm chart. They do publish docs version <code>dev</code>.</p>
 <h2 id="how-a-release-shows-up-in-the-docs">How a release shows up in the docs<a class="headerlink" href="#how-a-release-shows-up-in-the-docs" title="Permanent link">&para;</a></h2>
-<p>The site is built with Material for MkDocs and deployed with <a href="https://github.com/jimporter/mike">mike</a> onto the <code>gh-pages</code> branch. The docs workflow then sets GitHub Pages to <strong>Deploy from a branch</strong>, branch <code>gh-pages</code>, folder <code>/</code> (root). There is no custom domain. The site URL is <a href="https://kanzifucius.github.io/xr-rollout-controller/">https://kanzifucius.github.io/xr-rollout-controller/</a>.</p>
+<p>The site is built with Material for MkDocs and deployed with <a href="https://github.com/jimporter/mike">mike</a> onto the <code>gh-pages</code> branch. GitHub Pages serves that branch (folder <code>/</code>). There is no custom domain. The site URL is <a href="https://kanzifucius.github.io/xr-rollout-controller/">https://kanzifucius.github.io/xr-rollout-controller/</a>.</p>
 <table>
 <thead>
 <tr>
@@ -1071,7 +1071,7 @@
 </tbody>
 </table>
 <p>After <code>v1.2.3</code> is pushed, the version dropdown lists <code>1.2.3</code> and <code>latest</code> points at those pages. The next non-prerelease tag moves <code>latest</code>. Older versions stay addressable, for example <code>/1.2.3/</code> beside <code>/latest/</code> and <code>/dev/</code>.</p>
-<p>The first successful docs deploy on <code>main</code> creates <code>gh-pages</code> and points Pages at it. If the workflow token cannot change that setting, set it once under <strong>Settings → Pages → Build and deployment → Deploy from a branch → <code>gh-pages</code> / root</strong>.</p>
+<p>The first successful docs deploy on <code>main</code> creates <code>gh-pages</code>. Pages must be set once to <strong>Deploy from a branch</strong>, branch <code>gh-pages</code>, folder <code>/</code> (root). The workflow does not use the <code>github-pages</code> environment: that environment only allows deployments from <code>gh-pages</code>, and this job runs on <code>main</code>.</p>
 
 
 
