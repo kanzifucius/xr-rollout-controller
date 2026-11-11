@@ -18,8 +18,10 @@ package controller
 
 import (
 	"context"
+	"regexp"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,7 +50,34 @@ func (r *CompositionRolloutReconciler) patchXRRevision(ctx context.Context, u *u
 	if r.ForceOwnership {
 		opts = append(opts, client.ForceOwnership)
 	}
+	err := r.Patch(ctx, patchBase, client.Apply, opts...)
+	if err == nil || r.ForceOwnership || !crossplaneRevisionConflict(err) {
+		return err
+	}
+	// Crossplane applies this field itself. Take it so a Manual rollout can
+	// change the revision. Any other manager still surfaces as PatchFailed.
+	opts = append(opts, client.ForceOwnership)
 	return r.Patch(ctx, patchBase, client.Apply, opts...)
+}
+
+var conflictManagerPattern = regexp.MustCompile(`conflict with "([^"]+)"`)
+
+func crossplaneRevisionConflict(err error) bool {
+	if err == nil || !apierrors.IsConflict(err) {
+		return false
+	}
+	managers := conflictManagerPattern.FindAllStringSubmatch(err.Error(), -1)
+	if len(managers) == 0 {
+		return false
+	}
+	for _, match := range managers {
+		switch match[1] {
+		case "crossplane", "apiextensions.crossplane.io/composite":
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (r *CompositionRolloutReconciler) evaluateCanaryPatchState(

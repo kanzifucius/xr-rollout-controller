@@ -46,7 +46,7 @@ var scenarioCases = []struct {
 	{"deleting the target revision pauses with TargetRevisionGone", driftTargetRevisionGone},
 }
 
-var _ = Describe("preventative scenarios", Ordered, Label("scenarios"), func() {
+var _ = Describe("preventative scenarios", Ordered, ContinueOnFailure, Label("scenarios"), func() {
 	BeforeAll(installScenarioCluster)
 	AfterAll(teardownScenarioCluster)
 
