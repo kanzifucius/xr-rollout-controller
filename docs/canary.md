@@ -17,13 +17,31 @@ Idle → Canarying → Soaking → AwaitingApproval or Promoting → Completed �
 
 | Strategy | Behaviour |
 |----------|-----------|
-| `LabelSelector` | The XRs that match `canary.labelSelector` are the canary set. An empty match pauses with `CanarySetEmpty`. |
+| `LabelSelector` | The XRs that match [`canary.labelSelector`](#labelselector-strategy) are the canary set. An empty match pauses with `CanarySetEmpty`. |
 | `Count` | A fixed number of XRs. |
 | `Percent` | A percentage of the fleet, rounded up, minimum 1. |
 
-`Count` and `Percent` order candidates by a hash of the XR UID, with namespace and name as the tie-break, so the same XRs are chosen across restarts. `preferredNamespaces` draws from those namespaces first, in list order, and is ignored for `LabelSelector`.
+`Count` and `Percent` order candidates by a hash of the XR UID, with namespace and name as the tie-break, so the same XRs are chosen across restarts. `preferredNamespaces` draws from those namespaces first, in list order, and is ignored for `LabelSelector`. Those two strategies do not read `canary.labelSelector`.
 
 The chosen set is stored in `status.rollouts[].canary.selected` when canarying starts and is not recomputed for that rollout. A deleted canary shrinks the set. If the set becomes empty during soak, the rollout pauses.
+
+## LabelSelector strategy
+
+`canary.labelSelector` is used only when `canary.strategy` is `LabelSelector`. It is the same standard selector as [`xrSelector.labelSelector`](crd.md#which-xrs-a-composition-governs): `matchLabels` and `matchExpressions` are ANDed, and the operators are `In`, `NotIn`, `Exists`, and `DoesNotExist`.
+
+The governed XRs that match become the canary set. `preferredNamespaces` is ignored. Leaving `labelSelector` unset, or setting an empty selector, matches every governed XR. A selector that matches nobody pauses the rollout with `CanarySetEmpty`.
+
+```yaml
+canary:
+  strategy: LabelSelector
+  labelSelector:
+    matchExpressions:
+      - key: rollout.example.org/canary
+        operator: In
+        values: ["true"]
+```
+
+A manifest that sets both the fleet selector and this canary selector is in [Fleet and canary together](crd.md#fleet-and-canary-together).
 
 Canaries are patched with server-side apply, field manager `xr-rollout-controller`, changing only `spec.crossplane.compositionRevisionRef.name`. A field-ownership conflict pauses with `PatchFailed` unless the Deployment sets `--force-ownership`.
 
