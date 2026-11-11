@@ -9,10 +9,10 @@
 # GitHub Release, and OCI Helm chart in release.yml, and publishes the docs
 # version here. Release is not modified.
 #
-# Hosting: GitHub Pages serves the gh-pages branch (mike's pattern),
-# not a custom domain and not an actions/deploy-pages artefact.
-# After mike pushes, this workflow sets Pages to "Deploy from a branch"
-# (gh-pages / root) when the token can administer Pages.
+# Hosting: mike commits every version to the gh-pages branch. The Actions
+# GITHUB_TOKEN cannot create a "Deploy from a branch" Pages site (that API
+# needs administration permission). This workflow uploads that same tree and
+# publishes it with actions/deploy-pages. No custom domain.
 # Site URL: https://kanzifucius.github.io/xr-rollout-controller/
 name: docs
 
@@ -60,7 +60,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # mike commits and pushes to gh-pages
-      pages: write # point GitHub Pages at that branch
+      actions: write # upload the Pages artefact
+      pages: write # deploy that artefact
+      id-token: write # deploy-pages provenance
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -113,24 +118,21 @@ jobs:
             fi
           fi
 
-      - name: Publish GitHub Pages from gh-pages
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Export the mike gh-pages tree
         run: |
           set -euo pipefail
-          api="repos/${GITHUB_REPOSITORY}/pages"
-          site_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
-          # build_type=legacy is Settings → Pages → Deploy from a branch.
-          if branch="$(gh api "${api}" --jq '.source.branch' 2>/dev/null)"; then
-            path="$(gh api "${api}" --jq '.source.path')"
-            if [[ "${branch}" == "gh-pages" && "${path}" == "/" ]]; then
-              echo "GitHub Pages already serves gh-pages at ${site_url}"
-              exit 0
-            fi
-            method=PUT
-          else
-            method=POST
-          fi
-          payload='{"build_type":"legacy","source":{"branch":"gh-pages","path":"/"}}'
-          gh api --method "${method}" "${api}" --input - <<<"${payload}"
-          echo "GitHub Pages: ${site_url}"
+          rm -rf _site
+          mkdir -p _site
+          git archive gh-pages | tar -x -C _site
+          test -f _site/index.html
+          test -f _site/versions.json
+
+      - name: Upload GitHub Pages artefact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+          include-hidden-files: true
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

@@ -19,13 +19,13 @@ Two workflows run on that push. [Release](https://github.com/kanzifucius/xr-roll
 | Controller image | `ghcr.io/kanzifucius/xr-rollout-controller` | `v1.2.3` (the git tag) |
 | Helm chart | `oci://ghcr.io/kanzifucius/charts/xr-rollout-controller` | `1.2.3` (tag without `v`), `appVersion` `v1.2.3` |
 | GitHub Release | this repository | `install.yaml` and `compositionrollouts.crd.yaml` |
-| Docs version | GitHub Pages, `gh-pages` branch | `1.2.3`, and alias `latest` when the tag has no `-` |
+| Docs version | GitHub Pages (mike tree on `gh-pages`) | `1.2.3`, and alias `latest` when the tag has no `-` |
 
 Pushes to `main` publish the image as the short SHA and as `latest`. They do not push a Helm chart. They do publish docs version `dev`.
 
 ## How a release shows up in the docs
 
-The site is built with Material for MkDocs and deployed with [mike](https://github.com/jimporter/mike) onto the `gh-pages` branch. The docs workflow then sets GitHub Pages to **Deploy from a branch**, branch `gh-pages`, folder `/` (root). There is no custom domain. The site URL is [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/).
+The site is built with Material for MkDocs and deployed with [mike](https://github.com/jimporter/mike) onto the `gh-pages` branch. The docs workflow then publishes that tree with GitHub Pages. The Actions token cannot create a **Deploy from a branch** site, so the publish step uploads the `gh-pages` files and runs `actions/deploy-pages`. There is no custom domain. The site URL is [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/).
 
 | Push | mike version | Alias |
 |------|----------------|-------|
@@ -35,4 +35,4 @@ The site is built with Material for MkDocs and deployed with [mike](https://gith
 
 After `v1.2.3` is pushed, the version dropdown lists `1.2.3` and `latest` points at those pages. The next non-prerelease tag moves `latest`. Older versions stay addressable, for example `/1.2.3/` beside `/latest/` and `/dev/`.
 
-The first successful docs deploy on `main` creates `gh-pages` and points Pages at it. If the workflow token cannot change that setting, set it once under **Settings → Pages → Build and deployment → Deploy from a branch → `gh-pages` / root**.
+The first successful docs deploy on `main` creates `gh-pages` and turns GitHub Pages on. No settings change is required.
