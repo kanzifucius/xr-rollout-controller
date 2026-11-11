@@ -1,8 +1,17 @@
 # xr-rollout-controller
 
+[![Tests](https://github.com/kanzifucius/xr-rollout-controller/actions/workflows/test.yml/badge.svg)](https://github.com/kanzifucius/xr-rollout-controller/actions/workflows/test.yml)
+[![Lint](https://github.com/kanzifucius/xr-rollout-controller/actions/workflows/lint.yml/badge.svg)](https://github.com/kanzifucius/xr-rollout-controller/actions/workflows/lint.yml)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://kanzifucius.github.io/xr-rollout-controller/)
+[![GitHub release](https://img.shields.io/github/v/release/kanzifucius/xr-rollout-controller?sort=semver)](https://github.com/kanzifucius/xr-rollout-controller/releases)
+[![Go version](https://img.shields.io/github/go-mod/go-version/kanzifucius/xr-rollout-controller)](https://github.com/kanzifucius/xr-rollout-controller/blob/main/go.mod)
+[![Licence](https://img.shields.io/badge/licence-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+
 Kubebuilder controller that safely rolls out Crossplane **CompositionRevision** upgrades to composite resources (XRs) with canaries, soak-based health checks, per-environment promotion gates, and batched waves.
 
 **Target:** Crossplane v2 only (no claims; XRs may be namespaced). Governs XRs with `compositionUpdatePolicy: Manual` by writing `spec.crossplane.compositionRevisionRef`.
+
+**Documentation:** [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/) (Material for MkDocs + mike on GitHub Pages; the docs workflow publishes `gh-pages`).
 
 Design: [docs/xr-rollout-controller-plan.md](docs/xr-rollout-controller-plan.md)  
 Implementation phases: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
@@ -115,7 +124,7 @@ internal/xp/           unstructured Crossplane XR helpers
 internal/metrics/      Prometheus metrics
 charts/                Helm chart
 config/                CRD, RBAC, samples, admission policy
-docs/                  design + implementation notes
+docs/                  published site (MkDocs) plus design notes
 ```
 
 ## Licence

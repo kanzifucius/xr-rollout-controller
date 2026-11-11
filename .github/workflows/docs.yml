@@ -1,0 +1,136 @@
+# Build MkDocs on docs-related PRs; deploy versioned docs with mike to gh-pages.
+#
+# Version convention (same as kanzifucius/xp-clean):
+#   - push to main  → mike version "dev" (rolling tip of main)
+#   - push tag v*   → mike version "<semver without v>" + alias "latest"
+#                     (prerelease tags containing '-' skip the latest alias)
+#
+# This workflow runs beside Release. A semver tag still builds the image,
+# GitHub Release, and OCI Helm chart in release.yml, and publishes the docs
+# version here. Release is not modified.
+#
+# Hosting: GitHub Pages serves the gh-pages branch (mike's pattern),
+# not a custom domain and not an actions/deploy-pages artefact.
+# After mike pushes, this workflow sets Pages to "Deploy from a branch"
+# (gh-pages / root) when the token can administer Pages.
+# Site URL: https://kanzifucius.github.io/xr-rollout-controller/
+name: docs
+
+on:
+  # No path filter on push/tags — tag releases must always publish a versioned site.
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+
+      - name: Install docs dependencies
+        run: python3 -m pip install -r requirements-docs.txt
+
+      - name: Build (strict)
+        run: mkdocs build --strict
+
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # mike commits and pushes to gh-pages
+      pages: write # point GitHub Pages at that branch
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Fetch gh-pages (mike needs the branch when it already exists)
+        run: |
+          git fetch origin gh-pages --depth=1 || echo "gh-pages not present yet; mike will create it"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
+
+      - name: Configure Git identity for mike commits
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install docs dependencies
+        run: python3 -m pip install -r requirements-docs.txt
+
+      - name: Deploy with mike
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+            # Align with GHCR :latest — SemVer pre-releases (contain '-') do not move latest.
+            if [[ "${VERSION}" == *-* ]]; then
+              echo "Deploying prerelease docs version ${VERSION} (no latest alias)"
+              mike deploy --push "${VERSION}"
+            else
+              echo "Deploying release docs version ${VERSION} with alias latest"
+              mike deploy --push --update-aliases "${VERSION}" latest
+              mike set-default --push latest
+            fi
+          else
+            echo "Deploying development docs version dev"
+            mike deploy --push --update-aliases dev
+            # Before the first release, make / redirect to dev.
+            if ! mike list | grep -q '(default)'; then
+              mike set-default --push dev
+            fi
+          fi
+
+      - name: Publish GitHub Pages from gh-pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          api="repos/${GITHUB_REPOSITORY}/pages"
+          site_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+          # build_type=legacy is Settings → Pages → Deploy from a branch.
+          if branch="$(gh api "${api}" --jq '.source.branch' 2>/dev/null)"; then
+            path="$(gh api "${api}" --jq '.source.path')"
+            if [[ "${branch}" == "gh-pages" && "${path}" == "/" ]]; then
+              echo "GitHub Pages already serves gh-pages at ${site_url}"
+              exit 0
+            fi
+            method=PUT
+          else
+            method=POST
+          fi
+          payload='{"build_type":"legacy","source":{"branch":"gh-pages","path":"/"}}'
+          gh api --method "${method}" "${api}" --input - <<<"${payload}"
+          echo "GitHub Pages: ${site_url}"
