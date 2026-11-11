@@ -125,6 +125,7 @@ internal/metrics/      Prometheus metrics
 charts/                Helm chart
 config/                CRD, RBAC, samples, admission policy
 docs/                  published site (MkDocs) plus design notes
+AGENTS.md              guidelines for coding agents
 ```
 
 ## Licence

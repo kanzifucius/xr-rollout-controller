@@ -34,6 +34,8 @@ Design notes that are not part of the published site:
 - [`docs/xr-rollout-controller-plan.md`](https://github.com/kanzifucius/xr-rollout-controller/blob/main/docs/xr-rollout-controller-plan.md)
 - [`docs/IMPLEMENTATION.md`](https://github.com/kanzifucius/xr-rollout-controller/blob/main/docs/IMPLEMENTATION.md)
 
+Agent conventions for this repository are in [`AGENTS.md`](https://github.com/kanzifucius/xr-rollout-controller/blob/main/AGENTS.md).
+
 ## Conventions
 
 - British English in user-facing docs.
