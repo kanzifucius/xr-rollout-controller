@@ -27,7 +27,7 @@ Site layout (Material tabs): **Home → Install → CompositionRollout → Archi
 
 - Theme tokens and Archify iframe styles: `docs/stylesheets/extra.css`
 - Architecture diagrams: standalone HTML under `docs/architecture/` plus caption pages that embed them
-- Versioned deploys use [mike](https://github.com/jimporter/mike) on the `gh-pages` branch. The docs workflow publishes that tree to GitHub Pages (see `.github/workflows/docs.yml`)
+- Versioned deploys use [mike](https://github.com/jimporter/mike) on the `gh-pages` branch, which GitHub Pages serves (see `.github/workflows/docs.yml`)
 
 Prefer editing Markdown under `docs/` and `mkdocs.yml` on a feature branch. CI builds the site on pull requests that touch the docs toolchain, and publishes a version on pushes to `main` and on `v*` tags.
 

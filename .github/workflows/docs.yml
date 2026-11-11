@@ -9,10 +9,11 @@
 # GitHub Release, and OCI Helm chart in release.yml, and publishes the docs
 # version here. Release is not modified.
 #
-# Hosting: mike commits every version to the gh-pages branch. The Actions
-# GITHUB_TOKEN cannot create a "Deploy from a branch" Pages site (that API
-# needs administration permission). This workflow uploads that same tree and
-# publishes it with actions/deploy-pages. No custom domain.
+# Hosting: GitHub Pages is already "Deploy from a branch" (gh-pages /).
+# mike pushes that branch, which is what the site serves. Do not set
+# environment: github-pages on this job. That environment only allows
+# deployments from the gh-pages branch, so a job running on main is rejected
+# before any step, including the mike push. No custom domain.
 # Site URL: https://kanzifucius.github.io/xr-rollout-controller/
 name: docs
 
@@ -60,12 +61,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # mike commits and pushes to gh-pages
-      actions: write # upload the Pages artefact
-      pages: write # deploy that artefact
-      id-token: write # deploy-pages provenance
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -117,22 +112,3 @@ jobs:
               mike set-default --push dev
             fi
           fi
-
-      - name: Export the mike gh-pages tree
-        run: |
-          set -euo pipefail
-          rm -rf _site
-          mkdir -p _site
-          git archive gh-pages | tar -x -C _site
-          test -f _site/index.html
-          test -f _site/versions.json
-
-      - name: Upload GitHub Pages artefact
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: _site
-          include-hidden-files: true
-
-      - name: Deploy GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
