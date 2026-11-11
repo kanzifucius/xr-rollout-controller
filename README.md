@@ -11,7 +11,7 @@ Kubebuilder controller that safely rolls out Crossplane **CompositionRevision** 
 
 **Target:** Crossplane v2 only (no claims; XRs may be namespaced). Governs XRs with `compositionUpdatePolicy: Manual` by writing `spec.crossplane.compositionRevisionRef`.
 
-**Documentation:** [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/) (Material for MkDocs + mike on GitHub Pages; the docs workflow publishes `gh-pages`).
+**Documentation:** [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/) (Material for MkDocs + mike; the docs workflow publishes the `gh-pages` tree to GitHub Pages).
 
 Design: [docs/xr-rollout-controller-plan.md](docs/xr-rollout-controller-plan.md)  
 Implementation phases: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
