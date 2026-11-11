@@ -1,13 +1,15 @@
 # Build MkDocs on docs-related PRs; deploy versioned docs with mike to gh-pages.
 #
-# Version convention (same as kanzifucius/xp-clean):
-#   - push to main  → mike version "dev" (rolling tip of main)
-#   - push tag v*   → mike version "<semver without v>" + alias "latest"
-#                     (prerelease tags containing '-' skip the latest alias)
+# Version convention:
+#   - push to main → mike version "dev" (rolling tip of main)
+#   - stable tag vMAJOR.MINOR.PATCH (optional +build) → version without v,
+#     alias "latest", and that alias becomes the default
+#   - pre-release tag (v1.2.3-rc.1, v1.2.3-alpha.1, optional +build) →
+#     version without v, and the latest alias stays on the last stable version
 #
-# This workflow runs beside Release. A semver tag still builds the image,
-# GitHub Release, and OCI Helm chart in release.yml, and publishes the docs
-# version here. Release is not modified.
+# hack/release-tag.sh classifies the tag (shared with release.yml). A hyphen
+# only in build metadata stays stable. This workflow does not publish the
+# image, the GitHub Release, or the chart.
 #
 # Hosting: GitHub Pages is already "Deploy from a branch" (gh-pages /).
 # mike pushes that branch, which is what the site serves. Do not set
@@ -93,16 +95,19 @@ jobs:
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            TAG="${GITHUB_REF_NAME}"
-            VERSION="${TAG#v}"
-            # Align with GHCR :latest — SemVer pre-releases (contain '-') do not move latest.
-            if [[ "${VERSION}" == *-* ]]; then
-              echo "Deploying prerelease docs version ${VERSION} (no latest alias)"
-              mike deploy --push "${VERSION}"
+            # shellcheck source=hack/release-tag.sh
+            source hack/release-tag.sh
+            classify_release_tag "${GITHUB_REF_NAME}"
+            release_docs_alias
+            VERSION="$(release_chart_version)"
+            echo "Docs tag ${GITHUB_REF_NAME} kind ${RELEASE_KIND} version ${VERSION} alias ${DOCS_ALIAS:-<unchanged>}"
+            if [[ -n "${DOCS_ALIAS}" ]]; then
+              echo "Deploying release docs version ${VERSION} with alias ${DOCS_ALIAS}"
+              mike deploy --push --update-aliases "${VERSION}" "${DOCS_ALIAS}"
+              mike set-default --push "${DOCS_ALIAS}"
             else
-              echo "Deploying release docs version ${VERSION} with alias latest"
-              mike deploy --push --update-aliases "${VERSION}" latest
-              mike set-default --push latest
+              echo "Deploying pre-release docs version ${VERSION} (latest alias unchanged)"
+              mike deploy --push "${VERSION}"
             fi
           else
             echo "Deploying development docs version dev"

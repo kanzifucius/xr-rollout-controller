@@ -67,7 +67,7 @@ The chart is the supported install. `aggregationRule` on the XR ClusterRole is a
 
 `.github/workflows/release.yml` publishes the image, GitHub Release assets, and the OCI chart. Do not fold docs publishing into that file. `.github/workflows/docs.yml` publishes the site on the same tag push.
 
-Image tags keep the leading `v` (`v1.2.3`). Chart versions strip it (`1.2.3`). Packages are public (no pull secret in the default install).
+Image tags keep the leading `v` (`v1.2.3`). Chart versions strip it (`1.2.3`). A pre-release tag (`v1.2.3-rc.1`, `v1.2.3-alpha.1`, optional `+build` metadata) publishes that image tag only, a GitHub pre-release (`--prerelease`, `--latest=false`, generated notes, the same `install.yaml` and CRD assets), and the chart version without `v`. It does not move the image `latest` tag, retag a stable or `latest` chart, or move the mike `latest` alias. Stable `vMAJOR.MINOR.PATCH` tags (optional `+build`) keep the current publish path, including moving the mike `latest` alias. Pushes to `main` still publish the short SHA and image `latest`, and docs version `dev`. The split is `hack/release-tag.sh`, checked by `hack/release-tag_test.sh` (`make test-release-tag`). Packages are public (no pull secret in the default install).
 
 ## Docs site
 
@@ -78,7 +78,7 @@ mkdocs build --strict
 
 - British English in user-facing docs (`organisation`, `behaviour`, `stabilisation`).
 - The site URL is `https://kanzifucius.github.io/xr-rollout-controller/`. Do not add a custom domain.
-- mike versions: `dev` from `main`; tag `vX.Y.Z` becomes version `X.Y.Z` and moves the `latest` alias. A tag containing `-` does not move `latest`. mike commits that tree to `gh-pages`, which Pages serves. Do not put `environment: github-pages` on the docs job: that environment only allows the `gh-pages` branch, so a run on `main` is rejected before mike pushes. Do not call the Pages REST API to create the site: `GITHUB_TOKEN` cannot (HTTP 403).
+- mike versions: `dev` from `main`; a stable tag `vX.Y.Z` (optional `+build`) becomes version `X.Y.Z` and moves the `latest` alias. A pre-release tag publishes its own version and leaves `latest` on the last stable version. A hyphen only in build metadata does not make a pre-release. mike commits that tree to `gh-pages`, which Pages serves. Do not put `environment: github-pages` on the docs job: that environment only allows the `gh-pages` branch, so a run on `main` is rejected before mike pushes. Do not call the Pages REST API to create the site: `GITHUB_TOKEN` cannot (HTTP 403).
 - `docs/xr-rollout-controller-plan.md` and `docs/IMPLEMENTATION.md` are excluded from the site. Link them from GitHub, not as nav pages.
 - Archify HTML under `docs/architecture/` is committed. Candidates under `.archify/` are not. Regenerate with `--repo-root` and `--quality showcase` when the runtime, rollout flow, or Approve sequence changes.
 
