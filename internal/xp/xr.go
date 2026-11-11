@@ -25,18 +25,18 @@ import (
 )
 
 const (
-	fieldSpec                         = "spec"
-	fieldCrossplane                     = "crossplane"
-	fieldCompositionRef               = "compositionRef"
-	fieldCompositionRevisionRef       = "compositionRevisionRef"
-	fieldName                         = "name"
-	fieldCompositionUpdatePolicy      = "compositionUpdatePolicy"
-	fieldStatus                       = "status"
-	fieldConditions                   = "conditions"
-	conditionTypeReady                = "Ready"
-	conditionTypeSynced               = "Synced"
-	compositionUpdatePolicyAutomatic  = "Automatic"
-	compositionUpdatePolicyManual     = "Manual"
+	fieldSpec                        = "spec"
+	fieldCrossplane                  = "crossplane"
+	fieldCompositionRef              = "compositionRef"
+	fieldCompositionRevisionRef      = "compositionRevisionRef"
+	fieldName                        = "name"
+	fieldCompositionUpdatePolicy     = "compositionUpdatePolicy"
+	fieldStatus                      = "status"
+	fieldConditions                  = "conditions"
+	conditionTypeReady               = "Ready"
+	conditionTypeSynced              = "Synced"
+	compositionUpdatePolicyAutomatic = "Automatic"
+	compositionUpdatePolicyManual    = "Manual"
 )
 
 // GetCompositionRefName returns spec.crossplane.compositionRef.name.

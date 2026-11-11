@@ -21,12 +21,11 @@ import (
 	"fmt"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
 	"github.com/kanzifucius/xr-rollout-controller/internal/metrics"
@@ -119,7 +118,7 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 
 	out := rollout.Transition(in)
 
-	if err := r.applyTransition(ctx, cr, target, state, out, trigger, managed, pending, updated, latest, gvk); err != nil {
+	if err := r.applyTransition(ctx, cr, target, state, out, trigger, managed, pending, latest); err != nil {
 		return res, err
 	}
 
@@ -137,9 +136,8 @@ func (r *CompositionRolloutReconciler) applyTransition(
 	state *rolloutsv1alpha1.CompositionRolloutState,
 	out rollout.Output,
 	trigger *rolloutsv1alpha1.RolloutTrigger,
-	managed, pending, updated []unstructured.Unstructured,
+	managed, pending []unstructured.Unstructured,
 	latest revisionRecord,
-	gvk schema.GroupVersionKind,
 ) error {
 	prevPhase := state.Phase
 	state.Phase = out.Phase
@@ -183,7 +181,7 @@ func (r *CompositionRolloutReconciler) applyTransition(
 		state.StartedAt = &now
 		state.SoakEndsAt = nil
 		state.Wave = rolloutsv1alpha1.WaveStatus{}
-		if err := r.startCanaries(ctx, cr, target, state, managed); err != nil {
+		if err := r.startCanaries(cr, target, state, managed); err != nil {
 			return err
 		}
 		r.Recorder.Eventf(cr, "Normal", "RolloutStarted", "composition %s rollout started for revision %s", target.Name, latest.name)
@@ -275,7 +273,6 @@ func partitionFleet(
 }
 
 func (r *CompositionRolloutReconciler) startCanaries(
-	ctx context.Context,
 	cr *rolloutsv1alpha1.CompositionRollout,
 	target rolloutsv1alpha1.CompositionTarget,
 	state *rolloutsv1alpha1.CompositionRolloutState,

@@ -132,7 +132,7 @@ func orderCandidates(candidates []Candidate, preferredNamespaces []string) []Can
 		}
 	}
 
-	var ordered []Candidate
+	ordered := make([]Candidate, 0, len(candidates))
 	for _, ns := range preferredNamespaces {
 		bucket := byNS[ns]
 		if len(bucket) == 0 {

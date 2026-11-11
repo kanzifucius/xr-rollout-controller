@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
@@ -28,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"k8s.io/apimachinery/pkg/api/meta"
 
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
 )
@@ -38,8 +38,8 @@ const defaultFieldManager = "xr-rollout-controller"
 // CompositionRolloutReconciler reconciles a CompositionRollout object.
 type CompositionRolloutReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Dynamic dynamic.Interface
+	Scheme   *runtime.Scheme
+	Dynamic  dynamic.Interface
 	Recorder record.EventRecorder
 	Mapper   meta.RESTMapper
 

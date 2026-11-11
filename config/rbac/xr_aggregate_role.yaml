@@ -8,10 +8,10 @@ metadata:
   labels:
     # Aggregate into the manager role via your kustomize/overlays as needed.
     app.kubernetes.io/name: xr-rollout-controller
-  aggregationRule:
-    clusterRoleSelectors:
-      - matchLabels:
-          rollouts.platform.example.org/aggregate-to-rollout-controller: "true"
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rollouts.platform.example.org/aggregate-to-rollout-controller: "true"
 rules: []
 ---
 # Example per-group role (copy per XR API group):
