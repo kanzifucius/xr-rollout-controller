@@ -437,11 +437,18 @@ func setXRConditions(ns, name, ready string) {
 func ownRevision(ns, name, composition, rev string) {
 	// Keep Manual and the composition ref in the apply. Omitting them lets
 	// CRD defaulting turn the policy into Automatic and drop the XR from the fleet.
+	//
+	// Keep every live label too. kubectl apply --server-side migrates
+	// client-side ownership onto this field manager, then deletes migrated
+	// fields the manifest omits. Dropping the canary label makes the selector
+	// match nobody, so the rollout pauses with CanarySetEmpty and never
+	// attempts the conflicting revision patch.
 	doc := fmt.Sprintf(`apiVersion: %s/%s
 kind: %s
 metadata:
   name: %s
   namespace: %s
+%s
 spec:
   marker: keep-%s
   crossplane:
@@ -450,10 +457,27 @@ spec:
       name: %s
     compositionRevisionRef:
       name: %s
-`, xrGroup, xrVersion, xrKind, name, ns, name, composition, rev)
+`, xrGroup, xrVersion, xrKind, name, ns, labelBlock(labelsOf(mustXR(ns, name))), name, composition, rev)
 	path := writeTemp(doc)
 	defer func() { _ = os.Remove(path) }()
 	runOrFail("kubectl", "apply", "--server-side", "--field-manager=gitops", "--force-conflicts", "-f", path)
+}
+
+func labelBlock(labels map[string]string) string {
+	if len(labels) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(labels))
+	for key := range labels {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteString("  labels:\n")
+	for _, key := range keys {
+		_, _ = fmt.Fprintf(&b, "    %s: %q\n", key, labels[key])
+	}
+	return b.String()
 }
 
 func scaleCrossplane(replicas int) {
