@@ -9,8 +9,8 @@ import (
 func TestTransitionSuspend(t *testing.T) {
 	t.Parallel()
 	out := Transition(Input{
-		Phase: rolloutsv1alpha1.PhaseCanarying,
-		Suspend: true,
+		Phase:              rolloutsv1alpha1.PhaseCanarying,
+		Suspend:            true,
 		TargetRevisionName: "comp-v2",
 	})
 	if out.Phase != rolloutsv1alpha1.PhasePaused {

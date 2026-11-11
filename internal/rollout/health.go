@@ -20,9 +20,9 @@ import "time"
 
 // HealthItem carries Ready/Synced state for soak evaluation.
 type HealthItem struct {
-	ReadyTrue  bool
-	SyncedTrue bool
-	ReadySince time.Time
+	ReadyTrue   bool
+	SyncedTrue  bool
+	ReadySince  time.Time
 	SyncedSince time.Time
 }
 

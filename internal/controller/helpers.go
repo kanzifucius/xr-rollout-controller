@@ -113,7 +113,7 @@ func (r *CompositionRolloutReconciler) evaluateHealth(
 		canarySet[rolloutsv1alpha1.XRKey(ref.Namespace, ref.Name)] = struct{}{}
 	}
 
-	var items []rollout.HealthItem
+	items := make([]rollout.HealthItem, 0, len(canarySet))
 	for i := range managed {
 		u := &managed[i]
 		key := rolloutsv1alpha1.XRKey(u.GetNamespace(), u.GetName())

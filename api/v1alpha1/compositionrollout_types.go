@@ -23,10 +23,10 @@ import (
 
 // Condition and phase constants for CompositionRollout status.
 const (
-	ConditionProgressing       = "Progressing"
-	ConditionAwaitingApproval  = "AwaitingApproval"
-	ConditionPaused            = "Paused"
-	ConditionSucceeded         = "Succeeded"
+	ConditionProgressing      = "Progressing"
+	ConditionAwaitingApproval = "AwaitingApproval"
+	ConditionPaused           = "Paused"
+	ConditionSucceeded        = "Succeeded"
 
 	PhaseIdle             RolloutPhase = "Idle"
 	PhaseCanarying        RolloutPhase = "Canarying"
@@ -41,8 +41,8 @@ const (
 	CanaryStrategyCount         CanaryStrategy = "Count"
 	CanaryStrategyPercent       CanaryStrategy = "Percent"
 
-	PromotionAutoPromote     PromotionPolicy = "AutoPromote"
-	PromotionManualApproval  PromotionPolicy = "ManualApproval"
+	PromotionAutoPromote    PromotionPolicy = "AutoPromote"
+	PromotionManualApproval PromotionPolicy = "ManualApproval"
 
 	NewRevisionRestart NewRevisionPolicy = "Restart"
 	NewRevisionQueue   NewRevisionPolicy = "Queue"
@@ -52,15 +52,15 @@ const (
 	TriggerResume  TriggerAction = "Resume"
 	TriggerAbort   TriggerAction = "Abort"
 
-	PauseReasonCanaryUnhealthy     = "CanaryUnhealthy"
-	PauseReasonWaveUnhealthy       = "WaveUnhealthy"
+	PauseReasonCanaryUnhealthy      = "CanaryUnhealthy"
+	PauseReasonWaveUnhealthy        = "WaveUnhealthy"
 	PauseReasonStabilisationTimeout = "StabilisationTimeout"
-	PauseReasonPatchFailed         = "PatchFailed"
-	PauseReasonCanarySetEmpty      = "CanarySetEmpty"
-	PauseReasonSuspended           = "Suspended"
-	PauseReasonOverlap             = "CompositionOverlap"
-	PauseReasonTargetRevisionGone  = "TargetRevisionGone"
-	PauseReasonSchemaChange        = "SchemaChange"
+	PauseReasonPatchFailed          = "PatchFailed"
+	PauseReasonCanarySetEmpty       = "CanarySetEmpty"
+	PauseReasonSuspended            = "Suspended"
+	PauseReasonOverlap              = "CompositionOverlap"
+	PauseReasonTargetRevisionGone   = "TargetRevisionGone"
+	PauseReasonSchemaChange         = "SchemaChange"
 )
 
 // RolloutPhase is the phase of a single composition's rollout.
@@ -324,9 +324,9 @@ type RevisionInfo struct {
 type CanaryStatus struct {
 	// Selected lists the frozen canary members.
 	// +optional
-	Selected []XRRef `json:"selected,omitempty"`
-	Healthy  int32  `json:"healthy"`
-	Unhealthy int32 `json:"unhealthy"`
+	Selected  []XRRef `json:"selected,omitempty"`
+	Healthy   int32   `json:"healthy"`
+	Unhealthy int32   `json:"unhealthy"`
 }
 
 // WaveStatus tracks wave progress.

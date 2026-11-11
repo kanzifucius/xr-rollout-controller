@@ -94,6 +94,7 @@ func updateRolloutConditions(cr *rolloutsv1alpha1.CompositionRollout) {
 
 type neverPhase struct{}
 
+//nolint:unparam // the result exists only to force exhaustive switch handling
 func impossiblePhase(ph rolloutsv1alpha1.RolloutPhase) neverPhase {
 	switch ph {
 	case rolloutsv1alpha1.PhaseIdle,

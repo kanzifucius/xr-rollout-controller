@@ -17,8 +17,8 @@ limitations under the License.
 package metrics
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
+	"github.com/prometheus/client_golang/prometheus"
 	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 

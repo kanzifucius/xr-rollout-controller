@@ -4,24 +4,24 @@ import rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alph
 
 // Input is a snapshot of per-composition rollout state fed into Transition.
 type Input struct {
-	Phase                  rolloutsv1alpha1.RolloutPhase
-	Suspend                bool
-	AutoStart              bool
-	OnNewRevision          rolloutsv1alpha1.NewRevisionPolicy
-	PromotionPolicy        rolloutsv1alpha1.PromotionPolicy
-	LatestRevisionName     string
-	LatestRevisionNumber   int64
-	TargetRevisionName     string
-	TargetRevisionNumber   int64
-	AbortedRevision        string
-	CanaryAllPatched       bool
-	CanaryHealthy          bool
-	CanaryFailed           bool
-	SoakPassed             bool
-	WavesComplete          bool
-	WaveFailed             bool
-	Trigger                *rolloutsv1alpha1.RolloutTrigger
-	PhaseBeforePause       rolloutsv1alpha1.RolloutPhase
+	Phase                rolloutsv1alpha1.RolloutPhase
+	Suspend              bool
+	AutoStart            bool
+	OnNewRevision        rolloutsv1alpha1.NewRevisionPolicy
+	PromotionPolicy      rolloutsv1alpha1.PromotionPolicy
+	LatestRevisionName   string
+	LatestRevisionNumber int64
+	TargetRevisionName   string
+	TargetRevisionNumber int64
+	AbortedRevision      string
+	CanaryAllPatched     bool
+	CanaryHealthy        bool
+	CanaryFailed         bool
+	SoakPassed           bool
+	WavesComplete        bool
+	WaveFailed           bool
+	Trigger              *rolloutsv1alpha1.RolloutTrigger
+	PhaseBeforePause     rolloutsv1alpha1.RolloutPhase
 }
 
 // Output is the pure state-machine decision for one reconcile step.
@@ -66,7 +66,7 @@ func Transition(in Input) Output {
 	}
 
 	if newerRevisionPending(in) && in.OnNewRevision == rolloutsv1alpha1.NewRevisionRestart && isMidRollout(in.Phase) {
-		return supersedeOutput(in)
+		return supersedeOutput()
 	}
 
 	switch in.Phase {
@@ -170,7 +170,7 @@ func newerRevisionPending(in Input) bool {
 	return in.LatestRevisionNumber > in.TargetRevisionNumber
 }
 
-func supersedeOutput(in Input) Output {
+func supersedeOutput() Output {
 	return Output{
 		Phase:        rolloutsv1alpha1.PhaseCanarying,
 		StartRollout: true,
@@ -200,6 +200,7 @@ func applyTrigger(in Input) (bool, Output) {
 	}
 }
 
+//nolint:unparam // the result exists only to force exhaustive switch handling
 func impossibleTriggerAction(action rolloutsv1alpha1.TriggerAction) never {
 	switch action {
 	case rolloutsv1alpha1.TriggerStart,
@@ -346,6 +347,7 @@ func soakingProgress(in Input, out Output) Output {
 	return out
 }
 
+//nolint:unparam // the result exists only to force exhaustive switch handling
 func impossiblePromotionPolicy(policy rolloutsv1alpha1.PromotionPolicy) never {
 	switch policy {
 	case rolloutsv1alpha1.PromotionAutoPromote, rolloutsv1alpha1.PromotionManualApproval:

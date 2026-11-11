@@ -23,6 +23,8 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -94,12 +96,18 @@ var _ = Describe("CompositionRollout Controller", func() {
 				Skip("envtest not available")
 			}
 			By("Reconciling the created resource")
+			dyn, err := dynamic.NewForConfig(cfg)
+			Expect(err).NotTo(HaveOccurred())
+
 			controllerReconciler := &CompositionRolloutReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
+				Client:   k8sClient,
+				Scheme:   k8sClient.Scheme(),
+				Dynamic:  dyn,
+				Mapper:   k8sClient.RESTMapper(),
+				Recorder: record.NewFakeRecorder(32),
 			}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
