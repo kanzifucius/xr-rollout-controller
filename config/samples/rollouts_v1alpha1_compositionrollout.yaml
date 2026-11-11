@@ -1,0 +1,37 @@
+apiVersion: rollouts.platform.example.org/v1alpha1
+kind: CompositionRollout
+metadata:
+  name: team-payments
+spec:
+  compositions:
+    - name: platformdb.example.org
+    - name: platformcache.example.org
+      xrSelector:
+        namespaces: [payments-dev, payments-prod]
+  autoStart: true
+  onNewRevision: Restart
+  canary:
+    strategy: Percent
+    percent: 5
+    preferredNamespaces: [payments-dev]
+  soak:
+    duration: 1h
+    maxUnhealthy: 0
+    stabilisationTimeout: 30m
+  promotion:
+    defaultPolicy: ManualApproval
+    environments:
+      dev: AutoPromote
+      test: AutoPromote
+      acceptance: ManualApproval
+      prod: ManualApproval
+  waves:
+    batchSize: "10%"
+    maxConcurrentUpdates: 25
+    waveSoak: 10m
+  # Manual control surface — uncomment to approve / resume / abort / start:
+  # triggers:
+  #   - composition: platformdb.example.org
+  #     action: Approve
+  #     revision: platformdb.example.org-9f8a2c1
+  #     actor: ricardo@example.org

@@ -1,0 +1,27 @@
+# Aggregated ClusterRole: label additional per-XR-group ClusterRoles with
+# rollouts.platform.example.org/aggregate-to-rollout-controller=true so the
+# controller can get/list/watch/patch those XR types without wildcards.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xr-rollout-controller-xr-access
+  labels:
+    # Aggregate into the manager role via your kustomize/overlays as needed.
+    app.kubernetes.io/name: xr-rollout-controller
+  aggregationRule:
+    clusterRoleSelectors:
+      - matchLabels:
+          rollouts.platform.example.org/aggregate-to-rollout-controller: "true"
+rules: []
+---
+# Example per-group role (copy per XR API group):
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRole
+# metadata:
+#   name: xr-rollout-example-org
+#   labels:
+#     rollouts.platform.example.org/aggregate-to-rollout-controller: "true"
+# rules:
+#   - apiGroups: ["example.org"]
+#     resources: ["*"]
+#     verbs: ["get", "list", "watch", "patch"]
