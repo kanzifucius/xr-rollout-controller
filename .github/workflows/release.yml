@@ -1,0 +1,170 @@
+# Publishes the controller image to GHCR.
+# Pushes to main tag the image with the short SHA and latest.
+# Semver tag pushes (vMAJOR.MINOR.PATCH) tag the image with the git tag, then
+# attach kustomize release manifests to a GitHub Release and push the Helm
+# chart to oci://ghcr.io/kanzifucius/charts.
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  image:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve image tags
+        id: meta
+        run: |
+          image="ghcr.io/kanzifucius/xr-rollout-controller"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::Tag ${GITHUB_REF_NAME} is not a vMAJOR.MINOR.PATCH semver tag"
+              exit 1
+            fi
+            tags="${image}:${GITHUB_REF_NAME}"
+          else
+            short="${GITHUB_SHA:0:7}"
+            tags="${image}:${short}"$'\n'"${image}:latest"
+          fi
+          {
+            echo "image=${image}"
+            echo "tags<<EOF"
+            echo "${tags}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          # Provenance attestations need extra token permissions. The image
+          # push uses GITHUB_TOKEN with packages:write only.
+          provenance: false
+          sbom: false
+          tags: ${{ steps.meta.outputs.tags }}
+
+  release:
+    name: Publish GitHub Release and Helm chart
+    needs: image
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v3.22.1
+
+      - name: Check semver tag
+        run: |
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} is not a vMAJOR.MINOR.PATCH semver tag"
+            exit 1
+          fi
+
+      - name: Generate release manifests
+        run: |
+          image="${{ needs.image.outputs.image }}:${GITHUB_REF_NAME}"
+          make build-installer IMG="${image}"
+          cp config/crd/bases/rollouts.platform.example.org_compositionrollouts.yaml dist/compositionrollouts.crd.yaml
+          grep -F "${image}" dist/install.yaml
+          test -s dist/compositionrollouts.crd.yaml
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          assets=(
+            dist/install.yaml
+            dist/compositionrollouts.crd.yaml
+          )
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber --repo "${GITHUB_REPOSITORY}"
+          else
+            gh release create "${GITHUB_REF_NAME}" "${assets[@]}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi
+
+      - name: Lint and package Helm chart
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          helm lint charts/xr-rollout-controller
+          helm template xr-rollout-controller charts/xr-rollout-controller --include-crds >/dev/null
+          helm package charts/xr-rollout-controller \
+            --version "${version}" \
+            --app-version "${GITHUB_REF_NAME}" \
+            --destination dist
+          chart="dist/xr-rollout-controller-${version}.tgz"
+          test -s "${chart}"
+          helm template xr-rollout-controller "${chart}" --include-crds \
+            | grep -F "ghcr.io/kanzifucius/xr-rollout-controller:${GITHUB_REF_NAME}"
+
+      - name: Push Helm chart to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          chart="dist/xr-rollout-controller-${version}.tgz"
+          echo "${GITHUB_TOKEN}" | helm registry login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          set +e
+          push_log="$(helm push "${chart}" oci://ghcr.io/kanzifucius/charts 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "${push_log}"
+          if [[ "${status}" -ne 0 ]]; then
+            if printf '%s\n' "${push_log}" | grep -qiE 'already exists|cannot reuse|digest already'; then
+              echo "Chart version ${version} is already present on GHCR; leaving it in place."
+            else
+              exit "${status}"
+            fi
+          fi

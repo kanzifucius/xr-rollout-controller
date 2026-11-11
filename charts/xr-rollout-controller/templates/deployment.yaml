@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "xr-rollout-controller.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "xr-rollout-controller.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "xr-rollout-controller.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: manager
+          command:
+            - /manager
+          args:
+            {{- if .Values.leaderElection.enabled }}
+            - --leader-elect
+            {{- end }}
+            - {{ printf "--health-probe-bind-address=:%v" .Values.healthProbe.port | quote }}
+            {{- if .Values.metrics.service.enabled }}
+            - {{ printf "--metrics-bind-address=:%v" .Values.metrics.service.port | quote }}
+            {{- end }}
+            - {{ printf "--environment=%s" .Values.environment | quote }}
+            {{- if .Values.forceOwnership }}
+            - --force-ownership
+            {{- end }}
+            {{- if .Values.metricsAggregateOnly }}
+            - --metrics-aggregate-only
+            {{- end }}
+          image: {{ include "xr-rollout-controller.image" . | quote }}
+          imagePullPolicy: {{ include "xr-rollout-controller.imagePullPolicy" . }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          {{- if .Values.metrics.service.enabled }}
+          ports:
+            - name: https
+              containerPort: {{ .Values.metrics.service.port }}
+              protocol: TCP
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.healthProbe.port }}
+            initialDelaySeconds: {{ .Values.healthProbe.livenessInitialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbe.livenessPeriodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.healthProbe.port }}
+            initialDelaySeconds: {{ .Values.healthProbe.readinessInitialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbe.readinessPeriodSeconds }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

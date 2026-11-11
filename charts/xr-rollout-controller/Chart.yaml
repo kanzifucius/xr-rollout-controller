@@ -1,0 +1,18 @@
+apiVersion: v2
+name: xr-rollout-controller
+description: Rolls out Crossplane CompositionRevision upgrades to composite resources.
+type: application
+# Development chart version. The release workflow repackages with --version
+# taken from the git tag (the leading v is stripped).
+version: 0.1.0
+# In-repo default so a template points at the image published from main.
+# Release packages override this with the git tag, for example v1.2.3.
+appVersion: "latest"
+kubeVersion: ">=1.30.0-0"
+home: https://github.com/kanzifucius/xr-rollout-controller
+sources:
+  - https://github.com/kanzifucius/xr-rollout-controller
+keywords:
+  - crossplane
+  - rollout
+  - kubernetes

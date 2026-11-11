@@ -1,0 +1,87 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/kanzifucius/xr-rollout-controller
+  # Empty uses the chart appVersion. Published charts set that to the git tag
+  # (for example v1.2.3). The chart in git uses appVersion "latest".
+  tag: ""
+  # Empty selects Always when the tag is latest, otherwise IfNotPresent.
+  pullPolicy: ""
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Selects spec.promotion.environments[name] (or defaultPolicy) via --environment.
+environment: dev
+
+# Sets --force-ownership when true.
+forceOwnership: false
+
+# Sets --metrics-aggregate-only when true.
+metricsAggregateOnly: false
+
+leaderElection:
+  enabled: true
+
+healthProbe:
+  port: 8081
+  livenessInitialDelaySeconds: 15
+  livenessPeriodSeconds: 20
+  readinessInitialDelaySeconds: 5
+  readinessPeriodSeconds: 10
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+rbac:
+  create: true
+  # Admin, editor, and viewer ClusterRoles for CompositionRollout.
+  userRoles: true
+
+metrics:
+  service:
+    enabled: true
+    port: 8443
+  serviceMonitor:
+    enabled: false
+    namespace: ""
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+    # Matches config/prometheus/monitor.yaml. Prefer cert-manager for production.
+    insecureSkipVerify: true
+    scheme: https
+
+# Example ValidatingAdmissionPolicy from config/policy/approval-vap.yaml.
+admissionPolicy:
+  enabled: true

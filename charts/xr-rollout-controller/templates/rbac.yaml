@@ -1,0 +1,271 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-manager-role
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - apiextensions.crossplane.io
+    resources:
+      - compositionrevisions
+      - compositions
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - compositionrollouts
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - compositionrollouts/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - compositionrollouts/status
+    verbs:
+      - get
+      - patch
+      - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-manager-rolebinding
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "xr-rollout-controller.fullname" . }}-manager-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "xr-rollout-controller.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+{{/* aggregationRule is a top-level ClusterRole field. Do not nest it under metadata. */}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-xr-access
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rollouts.platform.example.org/aggregate-to-rollout-controller: "true"
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-xr-access
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "xr-rollout-controller.fullname" . }}-xr-access
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "xr-rollout-controller.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- if .Values.leaderElection.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-leader-election
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "xr-rollout-controller.fullname" . }}-leader-election
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "xr-rollout-controller.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.metrics.service.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-metrics-auth
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - authentication.k8s.io
+    resources:
+      - tokenreviews
+    verbs:
+      - create
+  - apiGroups:
+      - authorization.k8s.io
+    resources:
+      - subjectaccessreviews
+    verbs:
+      - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-metrics-auth
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "xr-rollout-controller.fullname" . }}-metrics-auth
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "xr-rollout-controller.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-metrics-reader
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+rules:
+  - nonResourceURLs:
+      - /metrics
+    verbs:
+      - get
+{{- end }}
+{{- if .Values.rbac.userRoles }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-compositionrollout-admin-role
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - compositionrollouts
+    verbs:
+      - '*'
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - compositionrollouts/status
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-compositionrollout-editor-role
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - compositionrollouts
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - compositionrollouts/status
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-compositionrollout-viewer-role
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - compositionrollouts
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - compositionrollouts/status
+    verbs:
+      - get
+{{- end }}
+{{- end }}

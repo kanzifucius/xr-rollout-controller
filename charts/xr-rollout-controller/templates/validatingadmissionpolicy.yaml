@@ -1,0 +1,39 @@
+{{- if .Values.admissionPolicy.enabled }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-guards
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["rollouts.platform.example.org"]
+        apiVersions: ["v1alpha1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["compositionrollouts"]
+  validations:
+    - expression: |
+        !has(object.spec.triggers) ||
+        object.spec.triggers.all(t,
+          t.action in ["Start", "Abort"] ||
+          (has(request.userInfo.groups) &&
+           "rollouts.platform.example.org:release-managers" in request.userInfo.groups))
+      message: "Approve and Resume triggers require membership in rollouts.platform.example.org:release-managers"
+    - expression: |
+        !has(object.spec.triggers) ||
+        object.spec.triggers.all(t,
+          t.action == "Start" || size(t.revision) > 0)
+      message: "Approve, Resume, and Abort triggers require a revision"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-guards
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+spec:
+  policyName: {{ include "xr-rollout-controller.fullname" . }}-guards
+  validationActions: [Deny]
+{{- end }}

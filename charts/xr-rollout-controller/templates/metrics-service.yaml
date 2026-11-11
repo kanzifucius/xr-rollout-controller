@@ -1,0 +1,17 @@
+{{- if .Values.metrics.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "xr-rollout-controller.fullname" . }}-metrics
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "xr-rollout-controller.labels" . | nindent 4 }}
+spec:
+  ports:
+    - name: https
+      port: {{ .Values.metrics.service.port }}
+      protocol: TCP
+      targetPort: https
+  selector:
+    {{- include "xr-rollout-controller.selectorLabels" . | nindent 4 }}
+{{- end }}

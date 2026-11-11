@@ -1,0 +1,625 @@
+# Copied from config/crd/bases/rollouts.platform.example.org_compositionrollouts.yaml.
+# Refresh this file when that CRD changes. Helm installs files in crds/ on first install
+# and does not upgrade them.
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.1
+  name: compositionrollouts.rollouts.platform.example.org
+spec:
+  group: rollouts.platform.example.org
+  names:
+    kind: CompositionRollout
+    listKind: CompositionRolloutList
+    plural: compositionrollouts
+    shortNames:
+    - xrollout
+    singular: compositionrollout
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.rollouts[0].phase
+      name: Phase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: CompositionRollout is the Schema for the compositionrollouts
+          API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              CompositionRolloutSpec defines how revisions of a set of compositions are
+              rolled out to the XRs that reference them.
+            properties:
+              autoStart:
+                default: true
+                description: |-
+                  AutoStart begins a rollout whenever a newer CompositionRevision appears.
+                  When false, rollouts only start via the manual trigger. Default true.
+                type: boolean
+              canary:
+                description: |-
+                  CanarySpec selects the subset upgraded first. Exactly one of LabelSelector,
+                  Count, or Percent should be set to match Strategy.
+                properties:
+                  count:
+                    description: Count is a fixed number of XRs. Used when Strategy=Count.
+                    format: int32
+                    type: integer
+                  labelSelector:
+                    description: |-
+                      LabelSelector picks XRs carrying specific labels.
+                      Used when Strategy=LabelSelector.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: |-
+                            A label selector requirement is a selector that contains values, a key, and an operator that
+                            relates the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: |-
+                                operator represents a key's relationship to a set of values.
+                                Valid operators are In, NotIn, Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: |-
+                                values is an array of string values. If the operator is In or NotIn,
+                                the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced during a strategic
+                                merge patch.
+                              items:
+                                type: string
+                              type: array
+                              x-kubernetes-list-type: atomic
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                          map is equivalent to an element of matchExpressions, whose key field is "key", the
+                          operator is "In", and the values array contains only "value". The requirements are ANDed.
+                        type: object
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  percent:
+                    description: |-
+                      Percent of the governed fleet, rounded up, minimum 1.
+                      Used when Strategy=Percent.
+                    format: int32
+                    maximum: 100
+                    minimum: 1
+                    type: integer
+                  preferredNamespaces:
+                    description: |-
+                      PreferredNamespaces biases Count/Percent selection: canaries are drawn
+                      from these namespaces first, in list order, using deterministic hash
+                      ordering within each namespace, before falling back to the rest of the
+                      fleet. Ignored for Strategy=LabelSelector.
+                    items:
+                      type: string
+                    type: array
+                  strategy:
+                    allOf:
+                    - enum:
+                      - LabelSelector
+                      - Count
+                      - Percent
+                    - enum:
+                      - LabelSelector
+                      - Count
+                      - Percent
+                    description: CanaryStrategy selects how the canary subset is chosen.
+                    type: string
+                required:
+                - strategy
+                type: object
+              compositions:
+                description: |-
+                  Compositions governed by this rollout config. XRs are selected by
+                  spec.crossplane.compositionRef.name matching one of these entries and
+                  compositionUpdatePolicy == Manual.
+                items:
+                  description: CompositionTarget names a Composition and optional
+                    XR narrowing.
+                  properties:
+                    name:
+                      description: Name of the cluster-scoped Composition.
+                      type: string
+                    xrSelector:
+                      description: XRSelector optionally narrows the governed XRs
+                        further.
+                      properties:
+                        labelSelector:
+                          description: |-
+                            A label selector is a label query over a set of resources. The result of matchLabels and
+                            matchExpressions are ANDed. An empty label selector matches all objects. A null
+                            label selector matches no objects.
+                          properties:
+                            matchExpressions:
+                              description: matchExpressions is a list of label selector
+                                requirements. The requirements are ANDed.
+                              items:
+                                description: |-
+                                  A label selector requirement is a selector that contains values, a key, and an operator that
+                                  relates the key and values.
+                                properties:
+                                  key:
+                                    description: key is the label key that the selector
+                                      applies to.
+                                    type: string
+                                  operator:
+                                    description: |-
+                                      operator represents a key's relationship to a set of values.
+                                      Valid operators are In, NotIn, Exists and DoesNotExist.
+                                    type: string
+                                  values:
+                                    description: |-
+                                      values is an array of string values. If the operator is In or NotIn,
+                                      the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                      the values array must be empty. This array is replaced during a strategic
+                                      merge patch.
+                                    items:
+                                      type: string
+                                    type: array
+                                    x-kubernetes-list-type: atomic
+                                required:
+                                - key
+                                - operator
+                                type: object
+                              type: array
+                              x-kubernetes-list-type: atomic
+                            matchLabels:
+                              additionalProperties:
+                                type: string
+                              description: |-
+                                matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                operator is "In", and the values array contains only "value". The requirements are ANDed.
+                              type: object
+                          type: object
+                          x-kubernetes-map-type: atomic
+                        namespaces:
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                  required:
+                  - name
+                  type: object
+                minItems: 1
+                type: array
+              onNewRevision:
+                allOf:
+                - enum:
+                  - Restart
+                  - Queue
+                - enum:
+                  - Restart
+                  - Queue
+                default: Restart
+                description: |-
+                  OnNewRevision controls what happens when an even newer revision appears
+                  while a rollout is in flight: Restart (abandon and retarget the newest,
+                  default) or Queue (finish the current rollout first).
+                type: string
+              promotion:
+                description: PromotionSpec maps environment names to post-soak behaviour.
+                properties:
+                  defaultPolicy:
+                    allOf:
+                    - enum:
+                      - AutoPromote
+                      - ManualApproval
+                    - enum:
+                      - AutoPromote
+                      - ManualApproval
+                    default: ManualApproval
+                    description: PromotionPolicy controls post-soak promotion behaviour.
+                    type: string
+                  environments:
+                    additionalProperties:
+                      description: PromotionPolicy controls post-soak promotion behaviour.
+                      enum:
+                      - AutoPromote
+                      - ManualApproval
+                      type: string
+                    description: |-
+                      Environments maps an environment name (dev, test, acceptance, prod, …)
+                      to a promotion policy. The controller looks up its own environment.
+                    type: object
+                required:
+                - defaultPolicy
+                type: object
+              soak:
+                description: SoakSpec defines canary health soak requirements.
+                properties:
+                  duration:
+                    default: 30m
+                    description: Duration the canary set must hold Ready=True and
+                      Synced=True.
+                    type: string
+                  maxUnhealthy:
+                    default: 0
+                    description: |-
+                      MaxUnhealthy is the number of canary XRs allowed to go unhealthy during
+                      the soak before the rollout pauses. Default 0.
+                    format: int32
+                    type: integer
+                  stabilisationTimeout:
+                    default: 30m
+                    description: |-
+                      StabilisationTimeout bounds how long the controller waits for canaries
+                      to first become healthy before declaring the canary failed.
+                    type: string
+                required:
+                - duration
+                type: object
+              suspend:
+                description: |-
+                  Suspend stops the controller acting on new revisions (and pauses any
+                  in-flight rollout) without deleting state.
+                type: boolean
+              triggers:
+                description: 'Triggers is the manual control surface: start, approve,
+                  resume, abort.'
+                items:
+                  description: RolloutTrigger is the manual control surface.
+                  properties:
+                    action:
+                      allOf:
+                      - enum:
+                        - Start
+                        - Approve
+                        - Resume
+                        - Abort
+                      - enum:
+                        - Start
+                        - Approve
+                        - Resume
+                        - Abort
+                      description: TriggerAction is a manual control action.
+                      type: string
+                    actor:
+                      description: Actor is free-text identification for audit.
+                      type: string
+                    composition:
+                      description: Composition this trigger applies to.
+                      type: string
+                    revision:
+                      description: |-
+                        Revision the action applies to (a CompositionRevision name). Required
+                        for Approve/Resume/Abort. Optional for Start (defaults to latest).
+                      type: string
+                  required:
+                  - action
+                  - composition
+                  type: object
+                type: array
+              waves:
+                description: WaveSpec configures batched promotion of the remainder.
+                properties:
+                  batchSize:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    default: 10%
+                    description: |-
+                      BatchSize is the number (int) or percentage (string, e.g. "10%") of
+                      remaining XRs updated per wave.
+                    x-kubernetes-int-or-string: true
+                  maxConcurrentUpdates:
+                    default: 20
+                    description: MaxConcurrentUpdates caps in-flight XR patches across
+                      a wave.
+                    format: int32
+                    type: integer
+                  maxUnhealthy:
+                    default: 0
+                    description: MaxUnhealthy per wave before pausing. Default 0.
+                    format: int32
+                    type: integer
+                  waveSoak:
+                    default: 5m
+                    description: WaveSoak is the health-hold period between waves.
+                    type: string
+                required:
+                - batchSize
+                type: object
+            required:
+            - canary
+            - compositions
+            - promotion
+            - soak
+            - waves
+            type: object
+          status:
+            description: CompositionRolloutStatus is the observed state.
+            properties:
+              conditions:
+                description: 'Conditions: Progressing, Paused, AwaitingApproval, Succeeded.'
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: ObservedGeneration of the spec last acted upon.
+                format: int64
+                type: integer
+              rollouts:
+                description: Rollouts tracks one entry per governed composition.
+                items:
+                  description: CompositionRolloutState is the per-composition state
+                    machine snapshot.
+                  properties:
+                    abortedRevision:
+                      description: |-
+                        AbortedRevision records a revision that was aborted so autoStart will
+                        not immediately re-trigger it.
+                      type: string
+                    acknowledgedTriggers:
+                      description: AcknowledgedTriggers records consumed triggers.
+                      items:
+                        description: AcknowledgedTrigger records a consumed trigger.
+                        properties:
+                          acknowledgedAt:
+                            format: date-time
+                            type: string
+                          action:
+                            description: TriggerAction is a manual control action.
+                            enum:
+                            - Start
+                            - Approve
+                            - Resume
+                            - Abort
+                            type: string
+                          actor:
+                            type: string
+                          outcome:
+                            description: Outcome is Applied or Stale.
+                            type: string
+                          revision:
+                            type: string
+                        required:
+                        - action
+                        - outcome
+                        type: object
+                      type: array
+                    canary:
+                      description: Canary membership, frozen at canary start for stability.
+                      properties:
+                        healthy:
+                          format: int32
+                          type: integer
+                        selected:
+                          description: Selected lists the frozen canary members.
+                          items:
+                            description: XRRef identifies an XR by namespace/name
+                              (namespace empty for cluster-scoped).
+                            properties:
+                              name:
+                                type: string
+                              namespace:
+                                type: string
+                            required:
+                            - name
+                            type: object
+                          type: array
+                        unhealthy:
+                          format: int32
+                          type: integer
+                      required:
+                      - healthy
+                      - unhealthy
+                      type: object
+                    completedAt:
+                      format: date-time
+                      type: string
+                    composition:
+                      type: string
+                    healthyXRs:
+                      format: int32
+                      type: integer
+                    pauseReason:
+                      description: PauseReason is set when Phase=Paused.
+                      properties:
+                        message:
+                          type: string
+                        reason:
+                          type: string
+                      required:
+                      - message
+                      - reason
+                      type: object
+                    phase:
+                      description: Phase of this composition's rollout.
+                      enum:
+                      - Idle
+                      - Canarying
+                      - Soaking
+                      - AwaitingApproval
+                      - Promoting
+                      - Paused
+                      - Completed
+                      - Aborted
+                      type: string
+                    phaseBeforePause:
+                      description: PhaseBeforePause records where Resume should return.
+                      enum:
+                      - Idle
+                      - Canarying
+                      - Soaking
+                      - AwaitingApproval
+                      - Promoting
+                      - Paused
+                      - Completed
+                      - Aborted
+                      type: string
+                    soakEndsAt:
+                      format: date-time
+                      type: string
+                    sourceRevision:
+                      description: SourceRevision is the revision the fleet was on
+                        when the rollout started.
+                      properties:
+                        name:
+                          type: string
+                        revision:
+                          description: Revision is CompositionRevision spec.revision
+                            number.
+                          format: int64
+                          type: integer
+                      required:
+                      - name
+                      - revision
+                      type: object
+                    startedAt:
+                      format: date-time
+                      type: string
+                    targetRevision:
+                      description: TargetRevision is the CompositionRevision being
+                        rolled out.
+                      properties:
+                        name:
+                          type: string
+                        revision:
+                          description: Revision is CompositionRevision spec.revision
+                            number.
+                          format: int64
+                          type: integer
+                      required:
+                      - name
+                      - revision
+                      type: object
+                    totalXRs:
+                      format: int32
+                      type: integer
+                    unmanagedXRs:
+                      format: int32
+                      type: integer
+                    updatedXRs:
+                      format: int32
+                      type: integer
+                    wave:
+                      description: Wave progress during Promoting.
+                      properties:
+                        current:
+                          format: int32
+                          type: integer
+                        total:
+                          format: int32
+                          type: integer
+                        waveEndsAt:
+                          format: date-time
+                          type: string
+                      required:
+                      - current
+                      - total
+                      type: object
+                  required:
+                  - composition
+                  - healthyXRs
+                  - phase
+                  - totalXRs
+                  - unmanagedXRs
+                  - updatedXRs
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - composition
+                x-kubernetes-list-type: map
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
