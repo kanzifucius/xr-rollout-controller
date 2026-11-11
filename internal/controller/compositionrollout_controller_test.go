@@ -18,13 +18,18 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
+	ctrl "sigs.k8s.io/controller-runtime"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -114,6 +119,73 @@ var _ = Describe("CompositionRollout Controller", func() {
 		})
 	})
 })
+
+var _ = Describe("Manager startup", func() {
+	It("skips a watch when the API is not installed", func() {
+		missing := &CompositionRolloutReconciler{Mapper: stubMapper{err: &meta.NoKindMatchError{
+			GroupKind:        compositionGVK.GroupKind(),
+			SearchedVersions: []string{compositionGVK.Version},
+		}}}
+		Expect(missing.apiInstalled(compositionGVK)).To(BeFalse())
+
+		present := &CompositionRolloutReconciler{Mapper: stubMapper{}}
+		Expect(present.apiInstalled(compositionGVK)).To(BeTrue())
+
+		Expect((&CompositionRolloutReconciler{}).apiInstalled(compositionGVK)).To(BeTrue())
+	})
+
+	It("starts when Crossplane CRDs are not installed", func() {
+		if !envtestOK {
+			Skip("envtest not available")
+		}
+		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+			Scheme:                 k8sClient.Scheme(),
+			Metrics:                metricsserver.Options{BindAddress: "0"},
+			HealthProbeBindAddress: "0",
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		dyn, err := dynamic.NewForConfig(cfg)
+		Expect(err).NotTo(HaveOccurred())
+		Expect((&CompositionRolloutReconciler{
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Dynamic:  dyn,
+			Recorder: record.NewFakeRecorder(8),
+		}).SetupWithManager(mgr)).To(Succeed())
+
+		startCtx, stop := context.WithCancel(context.Background())
+		defer stop()
+		errCh := make(chan error, 1)
+		go func() { errCh <- mgr.Start(startCtx) }()
+
+		synced := make(chan bool, 1)
+		go func() { synced <- mgr.GetCache().WaitForCacheSync(startCtx) }()
+		select {
+		case startErr := <-errCh:
+			Expect(startErr).NotTo(HaveOccurred())
+		case ok := <-synced:
+			Expect(ok).To(BeTrue())
+		case <-time.After(20 * time.Second):
+			Fail("manager did not start")
+		}
+		stop()
+		Eventually(errCh).Should(Receive(BeNil()))
+	})
+})
+
+// stubMapper is a RESTMapper with a fixed RESTMapping result.
+type stubMapper struct {
+	meta.RESTMapper
+	err error
+}
+
+func (m stubMapper) RESTMapping(schema.GroupKind, ...string) (*meta.RESTMapping, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return &meta.RESTMapping{}, nil
+}
 
 func int32Ptr(v int32) *int32 {
 	return &v
