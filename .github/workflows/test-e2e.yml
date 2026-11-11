@@ -32,4 +32,5 @@ jobs:
       - name: Running Test e2e
         run: |
           go mod tidy
+          # Scenario specs install Crossplane into this Kind cluster.
           make test-e2e

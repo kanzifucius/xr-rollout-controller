@@ -91,23 +91,29 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 		return res, nil
 	}
 
+	targetMissing, err := targetRevisionMissing(ctx, r, target.Name, state)
+	if err != nil {
+		return res, err
+	}
+
 	in := rollout.Input{
-		Phase:                state.Phase,
-		Suspend:              cr.Spec.Suspend,
-		AutoStart:            cr.Spec.AutoStartEnabled(),
-		OnNewRevision:        cr.Spec.OnNewRevision,
-		PromotionPolicy:      cr.Spec.Promotion.PromotionPolicyFor(r.Environment),
-		LatestRevisionName:   latest.name,
-		LatestRevisionNumber: latest.revision,
-		TargetRevisionName:   state.TargetRevision.Name,
-		TargetRevisionNumber: state.TargetRevision.Revision,
-		AbortedRevision:      state.AbortedRevision,
-		PhaseBeforePause:     state.PhaseBeforePause,
-		Trigger:              trigger,
+		Phase:                 state.Phase,
+		Suspend:               cr.Spec.Suspend,
+		AutoStart:             cr.Spec.AutoStartEnabled(),
+		OnNewRevision:         cr.Spec.OnNewRevision,
+		PromotionPolicy:       cr.Spec.Promotion.PromotionPolicyFor(r.Environment),
+		LatestRevisionName:    latest.name,
+		LatestRevisionNumber:  latest.revision,
+		TargetRevisionName:    state.TargetRevision.Name,
+		TargetRevisionNumber:  state.TargetRevision.Revision,
+		AbortedRevision:       state.AbortedRevision,
+		PhaseBeforePause:      state.PhaseBeforePause,
+		Trigger:               trigger,
+		TargetRevisionMissing: targetMissing,
 	}
 
 	in.CanaryAllPatched, in.CanaryFailed = r.evaluateCanaryPatchState(ctx, cr, target, state, managed, latest.name)
-	in.CanaryHealthy, in.SoakPassed, in.WaveFailed = r.evaluateHealth(state, cr, managed, pending)
+	in.CanaryHealthy, in.SoakPassed, in.SoakFailed, in.WaveFailed = r.evaluateHealth(state, cr, managed, pending)
 
 	if state.Phase == rolloutsv1alpha1.PhasePromoting {
 		in.WavesComplete = len(pending) == 0 && state.Wave.Current >= state.Wave.Total && state.Wave.Total > 0
@@ -357,7 +363,15 @@ func (r *CompositionRolloutReconciler) patchCanaries(
 		}
 		if err := r.patchXRRevision(ctx, u, revName); err != nil {
 			metrics.IncUpdateErrors(cr.Name, target.Name, r.MetricsAggregateOnly)
-			return err
+			state.Phase = rolloutsv1alpha1.PhasePaused
+			state.PhaseBeforePause = rolloutsv1alpha1.PhaseCanarying
+			state.PauseReason = &rolloutsv1alpha1.PauseReason{
+				Reason:  rolloutsv1alpha1.PauseReasonPatchFailed,
+				Message: err.Error(),
+			}
+			metrics.IncPause(cr.Name, target.Name, rolloutsv1alpha1.PauseReasonPatchFailed, r.MetricsAggregateOnly)
+			r.Recorder.Eventf(cr, "Warning", "RolloutPaused", "composition %s paused: %s", target.Name, err.Error())
+			return nil
 		}
 		metrics.IncUpdates(cr.Name, target.Name, r.MetricsAggregateOnly)
 	}

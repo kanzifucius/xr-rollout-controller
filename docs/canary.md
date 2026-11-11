@@ -43,7 +43,7 @@ canary:
 
 A manifest that sets both the fleet selector and this canary selector is in [Fleet and canary together](crd.md#fleet-and-canary-together).
 
-Canaries are patched with server-side apply, field manager `xr-rollout-controller`, changing only `spec.crossplane.compositionRevisionRef.name`. A field-ownership conflict pauses with `PatchFailed` unless the Deployment sets `--force-ownership`.
+Canaries are patched with server-side apply, field manager `xr-rollout-controller`, changing only `spec.crossplane.compositionRevisionRef.name`. Crossplane's own field manager on that field is taken so a Manual rollout can proceed. A conflict with any other manager pauses with `PatchFailed` unless the Deployment sets `--force-ownership`.
 
 ## Soak
 

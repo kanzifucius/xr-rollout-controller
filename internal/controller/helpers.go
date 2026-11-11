@@ -18,8 +18,10 @@ package controller
 
 import (
 	"context"
+	"regexp"
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,13 +40,44 @@ func (r *CompositionRolloutReconciler) listRolloutsForComposition(ctx context.Co
 }
 
 func (r *CompositionRolloutReconciler) patchXRRevision(ctx context.Context, u *unstructured.Unstructured, revName string) error {
-	patchBase := u.DeepCopy()
+	// Apply only the revision name. A full-object apply would claim every other field.
+	patchBase := &unstructured.Unstructured{}
+	patchBase.SetGroupVersionKind(u.GroupVersionKind())
+	patchBase.SetNamespace(u.GetNamespace())
+	patchBase.SetName(u.GetName())
 	xp.SetCompositionRevisionRef(patchBase, revName)
 	opts := []client.PatchOption{client.FieldOwner(r.FieldManager)}
 	if r.ForceOwnership {
 		opts = append(opts, client.ForceOwnership)
 	}
+	err := r.Patch(ctx, patchBase, client.Apply, opts...)
+	if err == nil || r.ForceOwnership || !crossplaneRevisionConflict(err) {
+		return err
+	}
+	// Crossplane applies this field itself. Take it so a Manual rollout can
+	// change the revision. Any other manager still surfaces as PatchFailed.
+	opts = append(opts, client.ForceOwnership)
 	return r.Patch(ctx, patchBase, client.Apply, opts...)
+}
+
+var conflictManagerPattern = regexp.MustCompile(`conflict with "([^"]+)"`)
+
+func crossplaneRevisionConflict(err error) bool {
+	if err == nil || !apierrors.IsConflict(err) {
+		return false
+	}
+	managers := conflictManagerPattern.FindAllStringSubmatch(err.Error(), -1)
+	if len(managers) == 0 {
+		return false
+	}
+	for _, match := range managers {
+		switch match[1] {
+		case "crossplane", "apiextensions.crossplane.io/composite":
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func (r *CompositionRolloutReconciler) evaluateCanaryPatchState(
@@ -106,7 +139,7 @@ func (r *CompositionRolloutReconciler) evaluateHealth(
 	state *rolloutsv1alpha1.CompositionRolloutState,
 	cr *rolloutsv1alpha1.CompositionRollout,
 	managed, pending []unstructured.Unstructured,
-) (canaryHealthy bool, soakPassed bool, waveFailed bool) {
+) (canaryHealthy bool, soakPassed bool, soakFailed bool, waveFailed bool) {
 	canarySet := map[string]struct{}{}
 	for i := range state.Canary.Selected {
 		ref := state.Canary.Selected[i]
@@ -142,6 +175,7 @@ func (r *CompositionRolloutReconciler) evaluateHealth(
 		state.Canary.Healthy = healthy
 		state.Canary.Unhealthy = unhealthy
 		canaryHealthy = !failed && unhealthy == 0
+		soakFailed = failed
 		if state.SoakEndsAt != nil && time.Now().After(state.SoakEndsAt.Time) && !failed {
 			soakPassed = true
 		}
@@ -165,7 +199,37 @@ func (r *CompositionRolloutReconciler) evaluateHealth(
 		_ = pending
 		waveFailed = failed || unhealthy > cr.Spec.Waves.MaxUnhealthy
 	}
-	return canaryHealthy, soakPassed, waveFailed
+	return canaryHealthy, soakPassed, soakFailed, waveFailed
+}
+
+func targetRevisionMissing(ctx context.Context, r *CompositionRolloutReconciler, composition string, state *rolloutsv1alpha1.CompositionRolloutState) (bool, error) {
+	if state.TargetRevision.Name == "" || !phaseTracksTargetRevision(state.Phase) {
+		return false, nil
+	}
+	revMap, err := buildRevisionMap(ctx, r, composition)
+	if err != nil {
+		return false, err
+	}
+	_, ok := revMap[state.TargetRevision.Name]
+	return !ok, nil
+}
+
+func phaseTracksTargetRevision(phase rolloutsv1alpha1.RolloutPhase) bool {
+	switch phase {
+	case rolloutsv1alpha1.PhaseCanarying,
+		rolloutsv1alpha1.PhaseSoaking,
+		rolloutsv1alpha1.PhaseAwaitingApproval,
+		rolloutsv1alpha1.PhasePromoting:
+		return true
+	case rolloutsv1alpha1.PhaseIdle,
+		rolloutsv1alpha1.PhasePaused,
+		rolloutsv1alpha1.PhaseCompleted,
+		rolloutsv1alpha1.PhaseAborted:
+		return false
+	default:
+		_ = impossiblePhase(phase)
+		return false
+	}
 }
 
 func (r *CompositionRolloutReconciler) timingRequeue(state *rolloutsv1alpha1.CompositionRolloutState) time.Duration {
