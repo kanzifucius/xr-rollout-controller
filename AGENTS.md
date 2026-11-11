@@ -78,7 +78,7 @@ mkdocs build --strict
 
 - British English in user-facing docs (`organisation`, `behaviour`, `stabilisation`).
 - The site URL is `https://kanzifucius.github.io/xr-rollout-controller/`. Do not add a custom domain.
-- mike versions: `dev` from `main`; tag `vX.Y.Z` becomes version `X.Y.Z` and moves the `latest` alias. A tag containing `-` does not move `latest`. mike commits that tree to `gh-pages`. Publish it with `actions/deploy-pages`. Do not call the Pages REST API to create a branch source: `GITHUB_TOKEN` cannot (HTTP 403).
+- mike versions: `dev` from `main`; tag `vX.Y.Z` becomes version `X.Y.Z` and moves the `latest` alias. A tag containing `-` does not move `latest`. mike commits that tree to `gh-pages`, which Pages serves. Do not put `environment: github-pages` on the docs job: that environment only allows the `gh-pages` branch, so a run on `main` is rejected before mike pushes. Do not call the Pages REST API to create the site: `GITHUB_TOKEN` cannot (HTTP 403).
 - `docs/xr-rollout-controller-plan.md` and `docs/IMPLEMENTATION.md` are excluded from the site. Link them from GitHub, not as nav pages.
 - Archify HTML under `docs/architecture/` is committed. Candidates under `.archify/` are not. Regenerate with `--repo-root` and `--quality showcase` when the runtime, rollout flow, or Approve sequence changes.
 

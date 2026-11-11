@@ -25,7 +25,7 @@ Pushes to `main` publish the image as the short SHA and as `latest`. They do not
 
 ## How a release shows up in the docs
 
-The site is built with Material for MkDocs and deployed with [mike](https://github.com/jimporter/mike) onto the `gh-pages` branch. The docs workflow then publishes that tree with GitHub Pages. The Actions token cannot create a **Deploy from a branch** site, so the publish step uploads the `gh-pages` files and runs `actions/deploy-pages`. There is no custom domain. The site URL is [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/).
+The site is built with Material for MkDocs and deployed with [mike](https://github.com/jimporter/mike) onto the `gh-pages` branch. GitHub Pages serves that branch (folder `/`). There is no custom domain. The site URL is [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/).
 
 | Push | mike version | Alias |
 |------|----------------|-------|
@@ -35,4 +35,4 @@ The site is built with Material for MkDocs and deployed with [mike](https://gith
 
 After `v1.2.3` is pushed, the version dropdown lists `1.2.3` and `latest` points at those pages. The next non-prerelease tag moves `latest`. Older versions stay addressable, for example `/1.2.3/` beside `/latest/` and `/dev/`.
 
-The first successful docs deploy on `main` creates `gh-pages` and turns GitHub Pages on. No settings change is required.
+The first successful docs deploy on `main` creates `gh-pages`. Pages must be set once to **Deploy from a branch**, branch `gh-pages`, folder `/` (root). The workflow does not use the `github-pages` environment: that environment only allows deployments from `gh-pages`, and this job runs on `main`.
