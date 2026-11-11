@@ -1,0 +1,18 @@
+# Binds the aggregated XR ClusterRole to the controller ServiceAccount.
+# Subject matches role_binding.yaml so config/default (used by `make deploy`
+# and the e2e suite) rewrites the name and namespace the same way.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: xr-rollout-controller
+    app.kubernetes.io/managed-by: kustomize
+  name: xr-access-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xr-rollout-controller-xr-access
+subjects:
+- kind: ServiceAccount
+  name: controller-manager
+  namespace: system

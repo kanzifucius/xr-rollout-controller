@@ -80,7 +80,14 @@ func updateRolloutConditions(cr *rolloutsv1alpha1.CompositionRollout) {
 		setCondition(&conds, rolloutsv1alpha1.ConditionAwaitingApproval, metav1.ConditionFalse, "NotWaiting", "")
 	}
 	if paused || cr.Spec.Suspend {
-		setCondition(&conds, rolloutsv1alpha1.ConditionPaused, metav1.ConditionTrue, "Paused", "Rollout paused")
+		reason, message := "Paused", "Rollout paused"
+		if msg, ok := patchFailedCondition(cr); ok {
+			reason = rolloutsv1alpha1.PauseReasonPatchFailed
+			if msg != "" {
+				message = msg
+			}
+		}
+		setCondition(&conds, rolloutsv1alpha1.ConditionPaused, metav1.ConditionTrue, reason, message)
 	} else {
 		setCondition(&conds, rolloutsv1alpha1.ConditionPaused, metav1.ConditionFalse, "Running", "")
 	}
@@ -90,6 +97,21 @@ func updateRolloutConditions(cr *rolloutsv1alpha1.CompositionRollout) {
 		setCondition(&conds, rolloutsv1alpha1.ConditionSucceeded, metav1.ConditionFalse, "Incomplete", "")
 	}
 	cr.Status.Conditions = conds
+}
+
+// patchFailedCondition reports the PatchFailed message when a composition
+// paused because server-side apply could not take the revision ref.
+func patchFailedCondition(cr *rolloutsv1alpha1.CompositionRollout) (string, bool) {
+	for i := range cr.Status.Rollouts {
+		st := &cr.Status.Rollouts[i]
+		if st.Phase != rolloutsv1alpha1.PhasePaused || st.PauseReason == nil {
+			continue
+		}
+		if st.PauseReason.Reason == rolloutsv1alpha1.PauseReasonPatchFailed {
+			return st.PauseReason.Message, true
+		}
+	}
+	return "", false
 }
 
 type neverPhase struct{}
