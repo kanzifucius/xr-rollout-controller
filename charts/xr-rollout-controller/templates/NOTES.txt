@@ -1,0 +1,23 @@
+xr-rollout-controller is installed in namespace {{ .Release.Namespace }}.
+
+Image: {{ include "xr-rollout-controller.image" . }}
+Environment (--environment): {{ .Values.environment }}
+
+XR permissions come from ClusterRoles labelled
+rollouts.platform.example.org/aggregate-to-rollout-controller=true.
+Those rules are aggregated into {{ include "xr-rollout-controller.fullname" . }}-xr-access,
+which is bound to the controller ServiceAccount.
+
+{{- if .Values.admissionPolicy.enabled }}
+
+The ValidatingAdmissionPolicy {{ include "xr-rollout-controller.fullname" . }}-guards is installed.
+Approve and Resume triggers require the group rollouts.platform.example.org:release-managers.
+Disable the policy with --set admissionPolicy.enabled=false.
+{{- end }}
+
+{{- if and .Values.metrics.service.enabled (not .Values.metrics.serviceMonitor.enabled) }}
+
+Metrics Service: {{ include "xr-rollout-controller.fullname" . }}-metrics.
+Enable a ServiceMonitor with --set metrics.serviceMonitor.enabled=true
+(requires the Prometheus Operator CRDs).
+{{- end }}
