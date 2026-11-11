@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/kanzifucius/xr-rollout-controller/security/advisories/new
+    about: Report privately. See SECURITY.md. Do not open a public issue.
+  - name: Documentation
+    url: https://kanzifucius.github.io/xr-rollout-controller/
+    about: Install, the CompositionRollout CRD, and rollout behaviour.

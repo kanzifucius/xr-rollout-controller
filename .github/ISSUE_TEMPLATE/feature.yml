@@ -1,0 +1,25 @@
+name: Feature
+description: A change to rollout behaviour, the API, or the install path.
+title: "feat: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What cannot be done today, and who it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The behaviour you want. Say if it would change the Manual revision-ref patch, add a rollback, or delete triggers. Those three are invariants today.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other ways to solve it, if you considered any.
+    validations:
+      required: false

@@ -1,0 +1,38 @@
+name: Bug
+description: The controller did something it should not have done.
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search open issues first. For a vulnerability, use private reporting in SECURITY.md. Do not file it here.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what the controller did instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: CompositionRollout spec, the --environment flag, the rollout phase, and the XR policy (Manual).
+      render: yaml
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: A git tag, or main at a commit. No release is tagged yet.
+      placeholder: main
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Logs or status
+      description: Controller logs or status.rollouts conditions. Redact secrets.
+    validations:
+      required: false

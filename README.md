@@ -128,6 +128,14 @@ docs/                  published site (MkDocs) plus design notes
 AGENTS.md              guidelines for coding agents
 ```
 
+## Support and contributing
+
+- [Contributing](CONTRIBUTING.md) — build, test (`make test`), lint, run, and pull requests.
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Security](SECURITY.md) — report a vulnerability privately.
+- [Bug and feature issues](https://github.com/kanzifucius/xr-rollout-controller/issues/new/choose)
+- Documentation: [MkDocs site](https://kanzifucius.github.io/xr-rollout-controller/). Agent guidelines: [AGENTS.md](AGENTS.md).
+
 ## Licence
 
-Apache-2.0
+[Apache-2.0](LICENSE). Copyright 2026 kanzifucius.
