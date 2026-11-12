@@ -12,4 +12,6 @@ One composition, from a new revision through canary, soak, the environment gate,
   <a href="../rollout-flow.html">Open standalone HTML</a>.
 </p>
 
+A dry run follows this order and skips the patch. It does not publish `Completed`. See [Dry run](../dry-run.md).
+
 Field-level behaviour: [Canary and promotion](../canary.md) and [Environment gate](../environment.md).

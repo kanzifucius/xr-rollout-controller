@@ -9,6 +9,8 @@ The controller rolls a fleet of Crossplane **v2** composite resources (XRs) onto
 
 It governs XRs whose `compositionUpdatePolicy` is **Manual**. The only field it writes is `spec.crossplane.compositionRevisionRef`. Automatic XRs keep moving on their own and are counted as unmanaged.
 
+Set `spec.dryRun: true` to simulate that rollout without writing the field. See [Dry run](dry-run.md).
+
 ## What it does
 
 1. **Watch** a cluster-scoped `CompositionRollout` and new `CompositionRevision` objects for the compositions it names.

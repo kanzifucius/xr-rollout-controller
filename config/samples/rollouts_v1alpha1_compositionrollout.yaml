@@ -3,6 +3,7 @@ kind: CompositionRollout
 metadata:
   name: team-payments
 spec:
+  # dryRun: true  # simulate only; leave unset for a real rollout
   compositions:
     - name: platformdb.example.org
     - name: platformcache.example.org

@@ -45,6 +45,8 @@ A manifest that sets both the fleet selector and this canary selector is in [Fle
 
 Canaries are patched with server-side apply, field manager `xr-rollout-controller`, changing only `spec.crossplane.compositionRevisionRef.name`. Crossplane's own field manager on that field is taken so a Manual rollout can proceed. A conflict with any other manager pauses with `PatchFailed` unless the Deployment sets `--force-ownership`.
 
+A dry run records those patches in `status.rollouts[].dryRun.wouldUpdate` and does not apply them. See [Dry run](dry-run.md).
+
 ## Soak
 
 `spec.soak.duration` (default `30m`) is how long every canary must hold `Ready=True` and `Synced=True`. Health means the conditions are currently `True` and their `lastTransitionTime` is at or before the soak start, so a flip to `False` during the window fails that XR even if it recovers.
