@@ -88,6 +88,7 @@ type rolloutSpec struct {
 	defaultPolicy string
 	suspend       bool
 	rolloutName   string
+	dryRun        bool
 }
 
 var activeFleet *seededFleet
@@ -240,7 +241,11 @@ spec:
 		}
 		_, _ = fmt.Fprintf(&b, "    labelSelector:\n      matchLabels:\n        %s: %q\n", canaryLabel, value)
 	}
-	_, _ = fmt.Fprintf(&b, "  autoStart: true\n  onNewRevision: Queue\n")
+	_, _ = fmt.Fprintf(&b, "  autoStart: true\n")
+	if spec.dryRun {
+		b.WriteString("  dryRun: true\n")
+	}
+	b.WriteString("  onNewRevision: Queue\n")
 	if spec.suspend {
 		b.WriteString("  suspend: true\n")
 	}
@@ -494,6 +499,24 @@ func scaleCrossplane(replicas int) {
 			return
 		}
 		g.Expect(out).To(Equal(fmt.Sprint(replicas)))
+	}).WithTimeout(3 * time.Minute).WithPolling(2 * time.Second).Should(Succeed())
+	if replicas != 0 {
+		return
+	}
+	// A terminating Crossplane pod can still write Ready=True over a status
+	// patch. Wait until those pods are gone. The RBAC manager is a separate
+	// deployment and does not reconcile composite status.
+	Eventually(func(g Gomega) {
+		out, err := run("kubectl", "get", "pods", "-n", crossplaneNamespace, "-o", "name")
+		g.Expect(err).NotTo(HaveOccurred())
+		var left []string
+		for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "pod/crossplane-") && !strings.HasPrefix(line, "pod/crossplane-rbac-manager-") {
+				left = append(left, line)
+			}
+		}
+		g.Expect(left).To(BeEmpty())
 	}).WithTimeout(3 * time.Minute).WithPolling(2 * time.Second).Should(Succeed())
 }
 

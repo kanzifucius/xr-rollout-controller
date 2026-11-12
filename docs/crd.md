@@ -10,6 +10,7 @@ XRs are in scope when `spec.crossplane.compositionRef.name` matches a listed com
 |-------|------|
 | `compositions` | Composition names to govern. At least one. Optional [`xrSelector`](#which-xrs-a-composition-governs) narrows the fleet. |
 | `suspend` | Pauses every in-flight rollout and ignores new revisions until cleared. |
+| `dryRun` | When `true`, simulate the rollout and do not write XRs. Default `false`. See [Dry run](dry-run.md). |
 | `autoStart` | Start a rollout when a newer revision appears. Default `true`. |
 | `onNewRevision` | `Restart` (default) abandons the current target for a newer revision. `Queue` finishes the current rollout first. |
 | `canary` | How the first subset is chosen. See [Canary and promotion](canary.md). |
@@ -139,6 +140,7 @@ Top-level conditions aggregate every composition: `Progressing`, `AwaitingApprov
 | `wave` | Current wave, total waves, and when the wave soak ends |
 | `pauseReason` | Machine-readable reason while `Paused` |
 | `acknowledgedTriggers` | Triggers already consumed, so each entry acts once |
+| `dryRun` | Simulation report: `active`, `promotion`, `wouldUpdate`, `completedAt`. Empty on a real rollout. |
 
 `kubectl get compositionrollouts` prints the first composition's phase.
 

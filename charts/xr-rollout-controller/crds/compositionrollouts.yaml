@@ -20,6 +20,9 @@ spec:
     - jsonPath: .status.rollouts[0].phase
       name: Phase
       type: string
+    - jsonPath: .spec.dryRun
+      name: Dry-run
+      type: boolean
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -221,6 +224,12 @@ spec:
                   type: object
                 minItems: 1
                 type: array
+              dryRun:
+                default: false
+                description: |-
+                  DryRun simulates this rollout. The controller records which Manual XRs
+                  would move and does not write them. Default false.
+                type: boolean
               onNewRevision:
                 allOf:
                 - enum:
@@ -514,6 +523,59 @@ spec:
                       type: string
                     composition:
                       type: string
+                    dryRun:
+                      description: |-
+                        DryRun is the simulation report. Set while spec.dryRun is true.
+                        completedAt here is not the rollout completedAt.
+                      properties:
+                        active:
+                          description: Active mirrors spec.dryRun for this composition.
+                          type: boolean
+                        completedAt:
+                          description: |-
+                            CompletedAt is when the simulation finished. The rollout completedAt
+                            stays empty.
+                          format: date-time
+                          type: string
+                        promotion:
+                          description: Promotion is the policy resolved for this controller's
+                            --environment.
+                          enum:
+                          - AutoPromote
+                          - ManualApproval
+                          type: string
+                        wouldUpdate:
+                          description: |-
+                            WouldUpdate lists Manual XRs whose compositionRevisionRef.name would
+                            change, in patch order. Entries stay after pause and abort.
+                          items:
+                            description: DryRunUpdate is one XR the controller would
+                              have patched.
+                            properties:
+                              name:
+                                type: string
+                              namespace:
+                                type: string
+                              revision:
+                                description: Revision is the CompositionRevision name
+                                  that would be written.
+                                type: string
+                              stage:
+                                description: DryRunStage is Canary or Wave.
+                                type: string
+                              wave:
+                                description: Wave is 1-based. Empty for a canary.
+                                format: int32
+                                type: integer
+                            required:
+                            - name
+                            - revision
+                            - stage
+                            type: object
+                          type: array
+                      required:
+                      - active
+                      type: object
                     healthyXRs:
                       format: int32
                       type: integer

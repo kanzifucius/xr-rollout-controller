@@ -112,6 +112,7 @@ nav:
       - Environment gate: environment.md
       - Promotion across clusters: promotion.md
       - Triggers: triggers.md
+      - Dry run: dry-run.md
   - Architecture:
       - architecture/index.md
       - Runtime diagram: architecture/runtime.md

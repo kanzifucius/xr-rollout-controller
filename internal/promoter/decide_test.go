@@ -247,6 +247,47 @@ func TestDecideHop(t *testing.T) {
 			write:   true,
 			message: "autoStart is true on the next cluster; Start is still written, but the gate is not held for the next revision",
 		},
+		{
+			name:    "predecessor spec dry run",
+			from:    dryRunView(completedFrom(rolloutsv1alpha1.PhaseCompleted)),
+			to:      idleDest,
+			action:  ActionBlocked,
+			reason:  ReasonDryRun,
+			message: "predecessor rollout is a dry run",
+		},
+		{
+			name: "predecessor dry run still active after the flag was cleared",
+			from: func() ClusterView {
+				v := completedFrom(rolloutsv1alpha1.PhaseIdle)
+				v.State.DryRun = &rolloutsv1alpha1.DryRunStatus{Active: true}
+				return v
+			}(),
+			to:      idleDest,
+			action:  ActionBlocked,
+			reason:  ReasonDryRun,
+			message: "predecessor rollout is a dry run",
+		},
+		{
+			name:    "next cluster spec dry run",
+			from:    completedFrom(rolloutsv1alpha1.PhaseCompleted),
+			to:      dryRunView(idleDest),
+			action:  ActionBlocked,
+			reason:  ReasonDryRun,
+			message: "next cluster rollout is a dry run",
+		},
+		{
+			name: "simulation completedAt is not a real completion",
+			from: func() ClusterView {
+				v := completedFrom(rolloutsv1alpha1.PhaseIdle)
+				v.State.CompletedAt = nil
+				now := metav1.Now()
+				v.State.DryRun = &rolloutsv1alpha1.DryRunStatus{CompletedAt: &now}
+				return v
+			}(),
+			to:     idleDest,
+			action: ActionWait,
+			reason: ReasonNoCompletedRevision,
+		},
 	}
 
 	for _, tc := range cases {
@@ -293,6 +334,12 @@ func completedDestination() ClusterView {
 	to.State = done.State
 	to.HasState = true
 	return to
+}
+
+func dryRunView(v ClusterView) ClusterView {
+	on := true
+	v.Spec.DryRun = &on
+	return v
 }
 
 func readyTo(auto bool) ClusterView {

@@ -37,6 +37,8 @@ The spoke `--environment` value is still the in-cluster policy key (`acceptance`
 
 Apply spoke `CompositionRollout` objects with server-side apply, so GitOps does not own the promoter's trigger key. `spec.triggers` is a map keyed by composition, action, and revision. The controller acknowledges a trigger in status. It does not delete it.
 
+A spoke `CompositionRollout` with `spec.dryRun: true` does not receive `Start`. A predecessor that is a dry run does not open the next cluster. The hop reason is `DryRun`.
+
 On each spoke, bind the kubeconfig identity to the ClusterRole in `config/rbac/promoter_remote_role.yaml` (also packaged at `charts/xr-rollout-controller/files/promoter-remote-rbac.yaml`). Do not reuse the XR aggregation role. That remote role can read rollout status and patch `spec.triggers`. It cannot write status, and it cannot touch XRs.
 
 The management process reaches each cluster with the [multicluster-runtime](https://github.com/kubernetes/community/blob/main/sig-multicluster/README.md) client library. Nothing else from that SIG has to be installed on the spokes.

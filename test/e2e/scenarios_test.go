@@ -44,6 +44,9 @@ var scenarioCases = []struct {
 	{"an XR deleted mid-rollout is dropped from the fleet", driftXRDeleted},
 	{"an XR created mid-rollout is not added to the canary set", driftXRCreated},
 	{"deleting the target revision pauses with TargetRevisionGone", driftTargetRevisionGone},
+	{"a dry run auto-promotes in status and does not write XRs", dryRunAutoPromotes},
+	{"a dry run waits for Approve and does not write XRs", dryRunAwaitsApproval},
+	{"a dry run pauses an unhealthy canary and does not write XRs", dryRunUnhealthyCanary},
 }
 
 var _ = Describe("preventative scenarios", Ordered, ContinueOnFailure, Label("scenarios"), func() {
@@ -350,6 +353,93 @@ func driftTargetRevisionGone() {
 func unsuspend(name string) {
 	runOrFail("kubectl", "patch", rolloutResource, name, "--type=json",
 		"-p", `[{"op":"replace","path":"/spec/suspend","value":false}]`)
+}
+
+func dryRunAutoPromotes() {
+	f := seedFleet("dry-run-auto", []xrSpec{{name: "a"}, {name: "b"}, {name: "c"}})
+	before := snapshotFleet(f)
+	applyRollout(f, rolloutSpec{
+		strategy: string(rolloutsv1alpha1.CanaryStrategyCount),
+		count:    1,
+		soak:     "3s",
+		waveSoak: "2s",
+		dev:      string(rolloutsv1alpha1.PromotionAutoPromote),
+		dryRun:   true,
+	})
+	st := waitState(f, 4*time.Minute, func(st rolloutsv1alpha1.CompositionRolloutState) bool {
+		return st.Phase == rolloutsv1alpha1.PhaseIdle && st.DryRun != nil && st.DryRun.CompletedAt != nil
+	})
+	Expect(st.CompletedAt).To(BeNil())
+	Expect(st.DryRun.Active).To(BeTrue())
+	Expect(st.DryRun.Promotion).To(Equal(rolloutsv1alpha1.PromotionAutoPromote))
+	Expect(st.Canary.Selected).To(HaveLen(1))
+	Expect(st.DryRun.WouldUpdate).To(HaveLen(len(f.xrs)))
+	canaries := 0
+	for _, item := range st.DryRun.WouldUpdate {
+		Expect(item.Revision).To(Equal(f.target))
+		if item.Stage == rolloutsv1alpha1.DryRunStageCanary {
+			canaries++
+		}
+	}
+	Expect(canaries).To(Equal(1))
+	for _, name := range f.xrs {
+		assertUnchangedXR(f, name, before)
+	}
+}
+
+func dryRunAwaitsApproval() {
+	setControllerEnvironment("prod")
+	f := seedFleet("dry-run-approval", []xrSpec{{name: "a"}, {name: "b"}, {name: "c"}})
+	before := snapshotFleet(f)
+	applyRollout(f, rolloutSpec{
+		strategy: string(rolloutsv1alpha1.CanaryStrategyCount),
+		count:    1,
+		soak:     "3s",
+		waveSoak: "2s",
+		dev:      string(rolloutsv1alpha1.PromotionAutoPromote),
+		prod:     string(rolloutsv1alpha1.PromotionManualApproval),
+		dryRun:   true,
+	})
+	st := waitPhase(f, rolloutsv1alpha1.PhaseAwaitingApproval)
+	Expect(st.DryRun).NotTo(BeNil())
+	Expect(st.DryRun.Promotion).To(Equal(rolloutsv1alpha1.PromotionManualApproval))
+	Expect(st.Canary.Selected).To(HaveLen(1))
+	Expect(st.DryRun.WouldUpdate).NotTo(BeEmpty())
+	for _, name := range f.xrs {
+		assertUnchangedXR(f, name, before)
+	}
+	addTrigger(f.rollout, f.composition, string(rolloutsv1alpha1.TriggerApprove), st.TargetRevision.Name)
+	waitState(f, 4*time.Minute, func(got rolloutsv1alpha1.CompositionRolloutState) bool {
+		return got.DryRun != nil && got.DryRun.CompletedAt != nil && got.Phase == rolloutsv1alpha1.PhaseIdle
+	})
+	cr, err := getRollout(f.rollout)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(cr.Spec.Triggers).To(HaveLen(1))
+	Expect(cr.Spec.Triggers[0].Action).To(Equal(rolloutsv1alpha1.TriggerApprove))
+	got, ok := findState(cr, f.composition)
+	Expect(ok).To(BeTrue())
+	Expect(got.AcknowledgedTriggers).NotTo(BeEmpty())
+	Expect(got.AcknowledgedTriggers[0].Outcome).To(Equal("Applied"))
+	for _, name := range f.xrs {
+		assertUnchangedXR(f, name, before)
+	}
+}
+
+func dryRunUnhealthyCanary() {
+	f := seedFleet("dry-run-unhealthy", []xrSpec{{name: "a", canary: true}, {name: "b"}})
+	scaleCrossplane(0)
+	setXRConditions(f.ns, "a", "False")
+	before := snapshotFleet(f)
+	applyRollout(f, rolloutSpec{
+		strategy: string(rolloutsv1alpha1.CanaryStrategyLabelSelector),
+		soak:     "3s",
+		dryRun:   true,
+	})
+	st := waitPaused(f, rolloutsv1alpha1.PauseReasonCanaryUnhealthy)
+	Expect(st.PhaseBeforePause).To(Equal(rolloutsv1alpha1.PhaseCanarying))
+	for _, name := range f.xrs {
+		assertUnchangedXR(f, name, before)
+	}
 }
 
 func contains(items []string, want string) bool {

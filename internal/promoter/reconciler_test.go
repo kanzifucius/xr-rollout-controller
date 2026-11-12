@@ -100,6 +100,39 @@ func TestReconcilePipelinePredecessorPaused(t *testing.T) {
 	assertHop(t, hops, "dev", "test", "")
 }
 
+func TestReconcilePipelineDryRunDoesNotWrite(t *testing.T) {
+	t.Parallel()
+	writer := &memWriter{}
+	hops, err := reconcileFixture(t, []string{"dev", "test"}, map[string]ClusterView{
+		"dev":  dryRunView(completedFrom(rolloutsv1alpha1.PhaseCompleted)),
+		"test": readyTo(false),
+	}, writer)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if len(writer.triggers) != 0 {
+		t.Fatalf("triggers = %#v, want none", writer.triggers)
+	}
+	if hops[0].Action != ActionBlocked || hops[0].Reason != ReasonDryRun {
+		t.Fatalf("hop = %#v", hops[0])
+	}
+
+	writer = &memWriter{}
+	hops, err = reconcileFixture(t, []string{"dev", "test"}, map[string]ClusterView{
+		"dev":  completedFrom(rolloutsv1alpha1.PhaseCompleted),
+		"test": dryRunView(readyTo(false)),
+	}, writer)
+	if err != nil {
+		t.Fatalf("destination reconcile: %v", err)
+	}
+	if len(writer.triggers) != 0 {
+		t.Fatalf("destination triggers = %#v, want none", writer.triggers)
+	}
+	if hops[0].Reason != ReasonDryRun || hops[0].Action != ActionBlocked {
+		t.Fatalf("destination hop = %#v", hops[0])
+	}
+}
+
 func TestReconcilePipelinePredecessorAborted(t *testing.T) {
 	t.Parallel()
 	from := completedFrom(rolloutsv1alpha1.PhaseIdle)

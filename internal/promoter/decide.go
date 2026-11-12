@@ -48,6 +48,7 @@ const (
 	ReasonAlreadyAcknowledged    = "AlreadyAcknowledged"
 	ReasonAlreadyStarted         = "AlreadyStarted"
 	ReasonStartWriteFailed       = "StartWriteFailed"
+	ReasonDryRun                 = "DryRun"
 
 	// Actor is the audit name written on a promoter Start trigger.
 	Actor = "xr-rollout-promoter"
@@ -73,6 +74,17 @@ type Decision struct {
 	Trigger  rolloutsv1alpha1.RolloutTrigger
 }
 
+func viewIsDryRun(v ClusterView) bool {
+	if v.Spec.DryRunEnabled() {
+		return true
+	}
+	return v.HasState && v.State.DryRun != nil && v.State.DryRun.Active
+}
+
+func dryRunBlocked(message string) Decision {
+	return Decision{Action: ActionBlocked, Reason: ReasonDryRun, Message: message}
+}
+
 // DecideHop reports what to do for one adjacent pair and one composition.
 func DecideHop(from, to ClusterView, composition string) Decision {
 	if !from.Engaged || !to.Engaged {
@@ -80,6 +92,13 @@ func DecideHop(from, to ClusterView, composition string) Decision {
 	}
 	if !from.Found {
 		return Decision{Action: ActionWait, Reason: ReasonRolloutNotFound}
+	}
+	if viewIsDryRun(from) {
+		d := dryRunBlocked("predecessor rollout is a dry run")
+		if from.HasState {
+			d.Revision = from.State.TargetRevision.Name
+		}
+		return d
 	}
 	if from.HasState && from.State.Phase == rolloutsv1alpha1.PhasePaused {
 		if from.State.PauseReason != nil && from.State.PauseReason.Reason == rolloutsv1alpha1.PauseReasonSuspended {
@@ -102,6 +121,12 @@ func decideDestination(to ClusterView, composition, rev string) Decision {
 	if !to.Found {
 		d.Action = ActionWait
 		d.Reason = ReasonRolloutNotFound
+		return d
+	}
+	if viewIsDryRun(to) {
+		d.Action = ActionBlocked
+		d.Reason = ReasonDryRun
+		d.Message = "next cluster rollout is a dry run"
 		return d
 	}
 	if !governs(to.Spec, composition) {

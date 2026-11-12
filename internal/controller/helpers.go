@@ -104,7 +104,11 @@ func (r *CompositionRolloutReconciler) evaluateCanaryPatchState(
 		if _, ok := canarySet[key]; !ok {
 			continue
 		}
-		if xp.GetCompositionRevisionRef(u) == targetRev {
+		patchedNow := xp.GetCompositionRevisionRef(u) == targetRev
+		if !patchedNow && cr.Spec.DryRunEnabled() && rollout.IsSimulated(state.Simulation(), u.GetNamespace(), u.GetName(), targetRev) {
+			patchedNow = true
+		}
+		if patchedNow {
 			patched++
 		}
 		ok, _, _ := xp.IsReadyAndSynced(u)
