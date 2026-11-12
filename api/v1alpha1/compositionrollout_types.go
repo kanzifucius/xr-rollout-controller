@@ -37,6 +37,9 @@ const (
 	PhaseCompleted        RolloutPhase = "Completed"
 	PhaseAborted          RolloutPhase = "Aborted"
 
+	DryRunStageCanary DryRunStage = "Canary"
+	DryRunStageWave   DryRunStage = "Wave"
+
 	CanaryStrategyLabelSelector CanaryStrategy = "LabelSelector"
 	CanaryStrategyCount         CanaryStrategy = "Count"
 	CanaryStrategyPercent       CanaryStrategy = "Percent"
@@ -83,6 +86,9 @@ type NewRevisionPolicy string
 // +kubebuilder:validation:Enum=Start;Approve;Resume;Abort
 type TriggerAction string
 
+// DryRunStage is Canary or Wave.
+type DryRunStage string
+
 // CompositionRolloutSpec defines how revisions of a set of compositions are
 // rolled out to the XRs that reference them.
 type CompositionRolloutSpec struct {
@@ -96,6 +102,12 @@ type CompositionRolloutSpec struct {
 	// in-flight rollout) without deleting state.
 	// +optional
 	Suspend bool `json:"suspend,omitempty"`
+
+	// DryRun simulates this rollout. The controller records which Manual XRs
+	// would move and does not write them. Default false.
+	// +kubebuilder:default=false
+	// +optional
+	DryRun *bool `json:"dryRun,omitempty"`
 
 	// AutoStart begins a rollout whenever a newer CompositionRevision appears.
 	// When false, rollouts only start via the manual trigger. Default true.
@@ -321,6 +333,41 @@ type CompositionRolloutState struct {
 	SoakEndsAt *metav1.Time `json:"soakEndsAt,omitempty"`
 	// +optional
 	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+
+	// DryRun is the simulation report. Set while spec.dryRun is true.
+	// completedAt here is not the rollout completedAt.
+	// +optional
+	DryRun *DryRunStatus `json:"dryRun,omitempty"`
+}
+
+// DryRunStatus is the per-composition simulation report.
+type DryRunStatus struct {
+	// Active mirrors spec.dryRun for this composition.
+	Active bool `json:"active"`
+	// WouldUpdate lists Manual XRs whose compositionRevisionRef.name would
+	// change, in patch order. Entries stay after pause and abort.
+	// +optional
+	WouldUpdate []DryRunUpdate `json:"wouldUpdate,omitempty"`
+	// Promotion is the policy resolved for this controller's --environment.
+	// +optional
+	Promotion PromotionPolicy `json:"promotion,omitempty"`
+	// CompletedAt is when the simulation finished. The rollout completedAt
+	// stays empty.
+	// +optional
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+}
+
+// DryRunUpdate is one XR the controller would have patched.
+type DryRunUpdate struct {
+	// +optional
+	Namespace string      `json:"namespace,omitempty"`
+	Name      string      `json:"name"`
+	Stage     DryRunStage `json:"stage"`
+	// Wave is 1-based. Empty for a canary.
+	// +optional
+	Wave int32 `json:"wave,omitempty"`
+	// Revision is the CompositionRevision name that would be written.
+	Revision string `json:"revision"`
 }
 
 // RevisionInfo identifies a CompositionRevision.
@@ -376,6 +423,7 @@ type AcknowledgedTrigger struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,shortName=xrollout
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.rollouts[0].phase`
+// +kubebuilder:printcolumn:name="Dry-run",type=boolean,JSONPath=`.spec.dryRun`
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // CompositionRollout is the Schema for the compositionrollouts API.
@@ -406,6 +454,19 @@ func (s *CompositionRolloutSpec) AutoStartEnabled() bool {
 		return true
 	}
 	return *s.AutoStart
+}
+
+// DryRunEnabled reports whether this object is simulating. Nil is false.
+func (s *CompositionRolloutSpec) DryRunEnabled() bool {
+	return s.DryRun != nil && *s.DryRun
+}
+
+// Simulation returns the would-update log. Nil when no report exists.
+func (s *CompositionRolloutState) Simulation() []DryRunUpdate {
+	if s.DryRun == nil {
+		return nil
+	}
+	return s.DryRun.WouldUpdate
 }
 
 // PromotionPolicyFor returns the promotion policy for the given environment.
