@@ -11,6 +11,8 @@ Each entry names the composition, the action, an optional revision, and an optio
 | `Resume` | Phase is `Paused`. Returns to the phase stored in `phaseBeforePause` (or `Canarying` if that is empty) and clears the pause reason. | Required, and must equal the target revision. |
 | `Abort` | Phase is `AwaitingApproval` or `Paused`. Moves to `Aborted`, then `Idle`. | Required, and must equal the target revision. |
 
+A promoter may append `Start` for one revision. The controller still only acknowledges that entry. A `Stale` acknowledgement is not retried for that revision.
+
 A trigger that does not match the phase or revision is acknowledged with outcome `Stale` and does not change the phase. `autoStart` will not immediately start a rollout for a revision that was aborted. A later `Start` can run that revision again from `Canarying`.
 
 Abort does not revert XRs. Canaries already on the new revision stay there. The rest stay on the old one until a later rollout moves them.

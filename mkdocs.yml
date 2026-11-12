@@ -110,6 +110,7 @@ nav:
       - The CRD: crd.md
       - Canary and promotion: canary.md
       - Environment gate: environment.md
+      - Promotion across clusters: promotion.md
       - Triggers: triggers.md
   - Architecture:
       - architecture/index.md
