@@ -70,3 +70,37 @@ func simulatedPending(pending []unstructured.Unstructured, updates []rolloutsv1a
 	}
 	return out
 }
+
+func settleDryRun(environment string, cr *rolloutsv1alpha1.CompositionRollout, state *rolloutsv1alpha1.CompositionRolloutState) bool {
+	active := state.DryRun != nil && state.DryRun.Active
+	if rollout.ShouldResetDryRun(cr.Spec.DryRunEnabled(), active, cr.Spec.Suspend) {
+		resetSimulatedRollout(state)
+		return true
+	}
+	if !cr.Spec.DryRunEnabled() {
+		return false
+	}
+	if state.DryRun == nil {
+		state.DryRun = &rolloutsv1alpha1.DryRunStatus{}
+	}
+	state.DryRun.Active = true
+	state.DryRun.Promotion = cr.Spec.Promotion.PromotionPolicyFor(environment)
+	return false
+}
+
+func resetSimulatedRollout(state *rolloutsv1alpha1.CompositionRolloutState) {
+	acks := state.AcknowledgedTriggers
+	aborted := state.AbortedRevision
+	composition := state.Composition
+	total, updated, healthy, unmanaged := state.TotalXRs, state.UpdatedXRs, state.HealthyXRs, state.UnmanagedXRs
+	*state = rolloutsv1alpha1.CompositionRolloutState{
+		Composition:          composition,
+		Phase:                rolloutsv1alpha1.PhaseIdle,
+		TotalXRs:             total,
+		UpdatedXRs:           updated,
+		HealthyXRs:           healthy,
+		UnmanagedXRs:         unmanaged,
+		AbortedRevision:      aborted,
+		AcknowledgedTriggers: acks,
+	}
+}

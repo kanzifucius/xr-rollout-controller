@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
+	"github.com/kanzifucius/xr-rollout-controller/internal/rollout"
 	"github.com/kanzifucius/xr-rollout-controller/internal/xp"
 )
 
@@ -174,6 +175,118 @@ func TestEvaluateCanaryPatchStateTreatsSimulationAsPatched(t *testing.T) {
 	allPatched, failed = r.evaluateCanaryPatchState(context.Background(), cr, rolloutsv1alpha1.CompositionTarget{}, state, managed, "rev-new")
 	if allPatched {
 		t.Fatalf("real evaluation treated the log as a patch")
+	}
+}
+
+func TestSettleDryRunPublishesThePolicyWithoutCompleting(t *testing.T) {
+	t.Parallel()
+	on := true
+	cr := &rolloutsv1alpha1.CompositionRollout{}
+	cr.Spec.DryRun = &on
+	cr.Spec.Promotion.DefaultPolicy = rolloutsv1alpha1.PromotionManualApproval
+	cr.Spec.Promotion.Environments = map[string]rolloutsv1alpha1.PromotionPolicy{
+		"dev": rolloutsv1alpha1.PromotionAutoPromote,
+	}
+	state := &rolloutsv1alpha1.CompositionRolloutState{Phase: rolloutsv1alpha1.PhaseIdle}
+	if skip := settleDryRun("dev", cr, state); skip {
+		t.Fatal("an active dry run must still reconcile")
+	}
+	if state.DryRun == nil || !state.DryRun.Active || state.DryRun.Promotion != rolloutsv1alpha1.PromotionAutoPromote {
+		t.Fatalf("report = %#v", state.DryRun)
+	}
+	if state.CompletedAt != nil {
+		t.Fatal("dry run set rollout completedAt")
+	}
+}
+
+func TestSettleDryRunResetDoesNotKeepTheCanary(t *testing.T) {
+	t.Parallel()
+	cr := &rolloutsv1alpha1.CompositionRollout{}
+	ack := rolloutsv1alpha1.AcknowledgedTrigger{Action: rolloutsv1alpha1.TriggerStart, Revision: "rev-1", Outcome: "Applied"}
+	state := &rolloutsv1alpha1.CompositionRolloutState{
+		Phase:                rolloutsv1alpha1.PhaseSoaking,
+		TargetRevision:       rolloutsv1alpha1.RevisionInfo{Name: "rev-1", Revision: 2},
+		Canary:               rolloutsv1alpha1.CanaryStatus{Selected: []rolloutsv1alpha1.XRRef{{Name: "a"}}},
+		AbortedRevision:      "rev-0",
+		AcknowledgedTriggers: []rolloutsv1alpha1.AcknowledgedTrigger{ack},
+		DryRun: &rolloutsv1alpha1.DryRunStatus{
+			Active: true,
+			WouldUpdate: []rolloutsv1alpha1.DryRunUpdate{{
+				Name: "a", Revision: "rev-1", Stage: rolloutsv1alpha1.DryRunStageCanary,
+			}},
+		},
+	}
+	if skip := settleDryRun("dev", cr, state); !skip {
+		t.Fatal("clearing dry run must skip Transition")
+	}
+	if state.Phase != rolloutsv1alpha1.PhaseIdle || state.DryRun != nil || len(state.Canary.Selected) != 0 {
+		t.Fatalf("reset state = %#v", state)
+	}
+	if state.TargetRevision.Name != "" || state.CompletedAt != nil {
+		t.Fatalf("revision leftover = %#v completed %#v", state.TargetRevision, state.CompletedAt)
+	}
+	if len(state.AcknowledgedTriggers) != 1 || state.AbortedRevision != "rev-0" {
+		t.Fatalf("acks = %#v aborted %s", state.AcknowledgedTriggers, state.AbortedRevision)
+	}
+}
+
+func TestApplyTransitionDryRunCompletionDoesNotPublishCompleted(t *testing.T) {
+	t.Parallel()
+	r := &CompositionRolloutReconciler{Recorder: record.NewFakeRecorder(4), Environment: "dev"}
+	on := true
+	cr := &rolloutsv1alpha1.CompositionRollout{}
+	cr.Spec.DryRun = &on
+	cr.Spec.Promotion.DefaultPolicy = rolloutsv1alpha1.PromotionAutoPromote
+	state := &rolloutsv1alpha1.CompositionRolloutState{
+		Phase:          rolloutsv1alpha1.PhasePromoting,
+		TargetRevision: rolloutsv1alpha1.RevisionInfo{Name: "rev-9", Revision: 9},
+		DryRun:         &rolloutsv1alpha1.DryRunStatus{Active: true},
+	}
+	out := rollout.Output{Phase: rolloutsv1alpha1.PhaseCompleted, MarkCompleted: true}
+	err := r.applyTransition(context.Background(), cr, rolloutsv1alpha1.CompositionTarget{Name: "platformdb.example.org"}, state, out, nil, nil, nil, revisionRecord{name: "rev-9", revision: 9})
+	if err != nil {
+		t.Fatalf("applyTransition: %v", err)
+	}
+	if state.Phase != rolloutsv1alpha1.PhaseIdle || state.CompletedAt != nil {
+		t.Fatalf("phase %s completedAt %#v", state.Phase, state.CompletedAt)
+	}
+	if state.DryRun == nil || state.DryRun.CompletedAt == nil || !state.DryRun.Active {
+		t.Fatalf("dry report = %#v", state.DryRun)
+	}
+}
+
+func TestAbortKeepsTheDryRunLogAndDoesNotNeedAClient(t *testing.T) {
+	t.Parallel()
+	r := &CompositionRolloutReconciler{Recorder: record.NewFakeRecorder(4)}
+	on := true
+	cr := &rolloutsv1alpha1.CompositionRollout{}
+	cr.Spec.DryRun = &on
+	state := &rolloutsv1alpha1.CompositionRolloutState{
+		Phase:          rolloutsv1alpha1.PhasePaused,
+		TargetRevision: rolloutsv1alpha1.RevisionInfo{Name: "rev-9", Revision: 9},
+		DryRun: &rolloutsv1alpha1.DryRunStatus{
+			Active: true,
+			WouldUpdate: []rolloutsv1alpha1.DryRunUpdate{{
+				Name: "a", Revision: "rev-9", Stage: rolloutsv1alpha1.DryRunStageCanary,
+			}},
+		},
+	}
+	trigger := &rolloutsv1alpha1.RolloutTrigger{Action: rolloutsv1alpha1.TriggerAbort, Revision: "rev-9", Composition: "platformdb.example.org"}
+	out := rollout.Output{
+		Phase:              rolloutsv1alpha1.PhaseAborted,
+		MarkAborted:        true,
+		AcknowledgeTrigger: true,
+		TriggerOutcome:     rollout.TriggerOutcomeApplied,
+	}
+	err := r.applyTransition(context.Background(), cr, rolloutsv1alpha1.CompositionTarget{Name: "platformdb.example.org"}, state, out, trigger, nil, nil, revisionRecord{})
+	if err != nil {
+		t.Fatalf("applyTransition: %v", err)
+	}
+	if len(state.Simulation()) != 1 || state.AbortedRevision != "rev-9" {
+		t.Fatalf("state = %#v", state)
+	}
+	if len(state.AcknowledgedTriggers) != 1 || state.AcknowledgedTriggers[0].Outcome != rollout.TriggerOutcomeApplied {
+		t.Fatalf("acks = %#v", state.AcknowledgedTriggers)
 	}
 }
 

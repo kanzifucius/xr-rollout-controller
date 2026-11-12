@@ -91,6 +91,11 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 		return res, nil
 	}
 
+	if settleDryRun(r.Environment, cr, state) {
+		metrics.SetPhase(cr.Name, target.Name, state.Phase, r.MetricsAggregateOnly)
+		return res, nil
+	}
+
 	targetMissing, err := targetRevisionMissing(ctx, r, target.Name, state)
 	if err != nil {
 		return res, err
@@ -143,6 +148,8 @@ func (r *CompositionRolloutReconciler) applyTransition(
 	managed, pending []unstructured.Unstructured,
 	latest revisionRecord,
 ) error {
+	out, dryCompleted := rollout.SuppressDryRunCompletion(out, cr.Spec.DryRunEnabled())
+
 	prevPhase := state.Phase
 	state.Phase = out.Phase
 	if out.PauseReason != nil {
@@ -167,6 +174,15 @@ func (r *CompositionRolloutReconciler) applyTransition(
 		now := metav1.Now()
 		state.CompletedAt = &now
 		r.Recorder.Eventf(cr, "Normal", "RolloutCompleted", "composition %s rollout completed", target.Name)
+	}
+	if dryCompleted {
+		if state.DryRun == nil {
+			state.DryRun = &rolloutsv1alpha1.DryRunStatus{}
+		}
+		now := metav1.Now()
+		state.DryRun.CompletedAt = &now
+		state.DryRun.Active = true
+		state.DryRun.Promotion = cr.Spec.Promotion.PromotionPolicyFor(r.Environment)
 	}
 	if out.Supersede {
 		r.Recorder.Eventf(cr, "Normal", "RolloutSuperseded", "composition %s superseded by newer revision", target.Name)
