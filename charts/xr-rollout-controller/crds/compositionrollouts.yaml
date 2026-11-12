@@ -323,9 +323,11 @@ spec:
                       description: Composition this trigger applies to.
                       type: string
                     revision:
+                      default: ""
                       description: |-
                         Revision the action applies to (a CompositionRevision name). Required
-                        for Approve/Resume/Abort. Optional for Start (defaults to latest).
+                        for Approve/Resume/Abort. Optional for Start: empty means latest.
+                        The empty default keeps this list-map key set when callers omit it.
                       type: string
                   required:
                   - action

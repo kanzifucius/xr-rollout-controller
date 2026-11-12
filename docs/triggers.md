@@ -2,7 +2,7 @@
 
 `spec.triggers` is the manual control surface. The controller never deletes or edits spec (GitOps would fight that). It records consumption on `status.rollouts[].acknowledgedTriggers`. A trigger already acknowledged for the same composition, action, and revision is a no-op.
 
-Each entry names the composition, the action, an optional revision, and an optional `actor` string for audit.
+Each entry names the composition, the action, an optional revision, and an optional `actor` string for audit. An omitted `Start` revision is stored as an empty string. That empty string is the map key for latest.
 
 | Action | When it applies | Revision |
 |--------|-----------------|----------|

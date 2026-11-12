@@ -37,6 +37,7 @@ promoter:
   enabled: false
   # Empty means the release namespace.
   secretNamespace: ""
+  # Between 2 and 32 unique names, each at most 253 characters.
   clusters:
     - dev
     - test

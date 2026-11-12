@@ -240,7 +240,9 @@ type RolloutTrigger struct {
 	Action TriggerAction `json:"action"`
 
 	// Revision the action applies to (a CompositionRevision name). Required
-	// for Approve/Resume/Abort. Optional for Start (defaults to latest).
+	// for Approve/Resume/Abort. Optional for Start: empty means latest.
+	// The empty default keeps this list-map key set when callers omit it.
+	// +kubebuilder:default=""
 	// +optional
 	Revision string `json:"revision,omitempty"`
 

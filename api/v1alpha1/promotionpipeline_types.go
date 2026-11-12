@@ -29,8 +29,10 @@ const (
 type PromotionPipelineSpec struct {
 	// Clusters is the promotion order. The first entry is never sent a Start.
 	// Each later entry receives a Start after the previous cluster completes
-	// the same CompositionRollout name and composition.
+	// the same CompositionRollout name and composition. Names must be unique.
+	// The length and name bounds keep that rule inside the apiserver CEL cost limit.
 	// +kubebuilder:validation:MinItems=2
+	// +kubebuilder:validation:MaxItems=32
 	// +kubebuilder:validation:XValidation:rule="self.all(c, self.exists_one(x, x.name == c.name))",message="cluster names must be unique"
 	Clusters []PromotionCluster `json:"clusters"`
 }
@@ -39,6 +41,7 @@ type PromotionPipelineSpec struct {
 type PromotionCluster struct {
 	// Name matches the kubeconfig Secret metadata.name.
 	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
 	Name string `json:"name"`
 }
 

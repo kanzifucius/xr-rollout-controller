@@ -54,18 +54,21 @@ spec:
                 description: |-
                   Clusters is the promotion order. The first entry is never sent a Start.
                   Each later entry receives a Start after the previous cluster completes
-                  the same CompositionRollout name and composition.
+                  the same CompositionRollout name and composition. Names must be unique.
+                  The length and name bounds keep that rule inside the apiserver CEL cost limit.
                 items:
                   description: PromotionCluster is one engaged cluster. List order
                     is the promotion order.
                   properties:
                     name:
                       description: Name matches the kubeconfig Secret metadata.name.
+                      maxLength: 253
                       minLength: 1
                       type: string
                   required:
                   - name
                   type: object
+                maxItems: 32
                 minItems: 2
                 type: array
                 x-kubernetes-validations:
