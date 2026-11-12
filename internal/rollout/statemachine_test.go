@@ -307,3 +307,82 @@ func TestTransitionTerminalToIdle(t *testing.T) {
 		t.Fatalf("completed = %#v", completed)
 	}
 }
+
+func TestStartOutcomeMatchesApply(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		in      Input
+		applied bool
+		outcome string
+	}{
+		{
+			name: "idle latest with explicit revision",
+			in: Input{
+				Phase:              rolloutsv1alpha1.PhaseIdle,
+				LatestRevisionName: "comp-v2",
+				Trigger: &rolloutsv1alpha1.RolloutTrigger{
+					Action:   rolloutsv1alpha1.TriggerStart,
+					Revision: "comp-v2",
+				},
+			},
+			applied: true,
+			outcome: TriggerOutcomeApplied,
+		},
+		{
+			name: "named revision is not latest",
+			in: Input{
+				Phase:              rolloutsv1alpha1.PhaseIdle,
+				LatestRevisionName: "comp-v2",
+				Trigger: &rolloutsv1alpha1.RolloutTrigger{
+					Action:   rolloutsv1alpha1.TriggerStart,
+					Revision: "comp-v1",
+				},
+			},
+			outcome: TriggerOutcomeStale,
+		},
+		{
+			name: "not idle",
+			in: Input{
+				Phase:              rolloutsv1alpha1.PhaseCanarying,
+				LatestRevisionName: "comp-v2",
+				Trigger: &rolloutsv1alpha1.RolloutTrigger{
+					Action:   rolloutsv1alpha1.TriggerStart,
+					Revision: "comp-v2",
+				},
+			},
+			outcome: TriggerOutcomeStale,
+		},
+		{
+			name: "latest is the aborted revision",
+			in: Input{
+				Phase:              rolloutsv1alpha1.PhaseIdle,
+				LatestRevisionName: "comp-v2",
+				AbortedRevision:    "comp-v2",
+				Trigger: &rolloutsv1alpha1.RolloutTrigger{
+					Action:   rolloutsv1alpha1.TriggerStart,
+					Revision: "comp-v2",
+				},
+			},
+			outcome: TriggerOutcomeStale,
+		},
+		{
+			name: "approve is not a start",
+			in: Input{
+				Phase: rolloutsv1alpha1.PhaseIdle,
+				Trigger: &rolloutsv1alpha1.RolloutTrigger{
+					Action: rolloutsv1alpha1.TriggerApprove,
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			applied, outcome := StartOutcome(tc.in)
+			if applied != tc.applied || outcome != tc.outcome {
+				t.Fatalf("StartOutcome = (%v, %q), want (%v, %q)", applied, outcome, tc.applied, tc.outcome)
+			}
+		})
+	}
+}

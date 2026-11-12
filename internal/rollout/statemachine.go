@@ -232,24 +232,35 @@ func impossibleTriggerAction(action rolloutsv1alpha1.TriggerAction) never {
 	return n
 }
 
-func applyStartTrigger(in Input, out Output) (bool, Output) {
+// StartOutcome reports what applyStartTrigger would do with in.Trigger.
+// applied is true only when the Start would enter Canarying.
+// outcome is Applied, Stale, or empty when the trigger is not a Start.
+func StartOutcome(in Input) (applied bool, outcome string) {
+	if in.Trigger == nil || in.Trigger.Action != rolloutsv1alpha1.TriggerStart {
+		return false, ""
+	}
 	if in.Phase != rolloutsv1alpha1.PhaseIdle {
-		out.AcknowledgeTrigger = true
-		out.TriggerOutcome = TriggerOutcomeStale
-		return true, out
+		return false, TriggerOutcomeStale
 	}
 	if in.LatestRevisionName == "" || in.LatestRevisionName == in.AbortedRevision {
-		out.AcknowledgeTrigger = true
-		out.TriggerOutcome = TriggerOutcomeStale
-		return true, out
+		return false, TriggerOutcomeStale
 	}
 	if in.Trigger.Revision != "" && in.Trigger.Revision != in.LatestRevisionName {
-		out.AcknowledgeTrigger = true
-		out.TriggerOutcome = TriggerOutcomeStale
-		return true, out
+		return false, TriggerOutcomeStale
+	}
+	return true, TriggerOutcomeApplied
+}
+
+func applyStartTrigger(in Input, out Output) (bool, Output) {
+	applied, outcome := StartOutcome(in)
+	if outcome == "" {
+		return false, out
 	}
 	out.AcknowledgeTrigger = true
-	out.TriggerOutcome = TriggerOutcomeApplied
+	out.TriggerOutcome = outcome
+	if !applied {
+		return true, out
+	}
 	out.Phase = rolloutsv1alpha1.PhaseCanarying
 	out.StartRollout = true
 	out.ClearAbort = true
