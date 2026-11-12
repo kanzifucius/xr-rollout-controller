@@ -76,6 +76,10 @@ func hopSourceFrom(ctx context.Context) (hopSource, bool) {
 	return source, ok
 }
 
+// +kubebuilder:rbac:groups=rollouts.platform.example.org,resources=promotionpipelines,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rollouts.platform.example.org,resources=promotionpipelines/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+
 // Reconcile walks one PromotionPipeline and appends a Start when the
 // previous cluster has completed that revision.
 func (r *PromoterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

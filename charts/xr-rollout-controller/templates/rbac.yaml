@@ -43,11 +43,29 @@ rules:
   - apiGroups:
       - rollouts.platform.example.org
     resources:
+      - promotionpipelines
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
+      - promotionpipelines/status
+    verbs:
+      - get
+      - patch
+      - update
+  {{- if .Values.rollout.enabled }}
+  - apiGroups:
+      - rollouts.platform.example.org
+    resources:
       - compositionrollouts/status
     verbs:
       - get
       - patch
       - update
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

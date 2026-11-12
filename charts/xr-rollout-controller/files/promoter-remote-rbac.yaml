@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xr-rollout-promoter
+rules:
+  - apiGroups: ["rollouts.platform.example.org"]
+    resources: ["compositionrollouts"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["rollouts.platform.example.org"]
+    resources: ["compositionrollouts/status"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.crossplane.io"]
+    resources: ["compositionrevisions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
