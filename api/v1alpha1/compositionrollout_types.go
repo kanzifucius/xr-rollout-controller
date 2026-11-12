@@ -117,6 +117,14 @@ type CompositionRolloutSpec struct {
 	Waves     WaveSpec      `json:"waves"`
 
 	// Triggers is the manual control surface: start, approve, resume, abort.
+	// The list is a map keyed by composition, action, and revision so a
+	// field manager can own a single entry. The promoter's Start uses
+	// field manager xr-rollout-promoter. Empty revision is a key: only one
+	// Start with an empty revision is allowed per composition.
+	// +listType=map
+	// +listMapKey=composition
+	// +listMapKey=action
+	// +listMapKey=revision
 	// +optional
 	Triggers []RolloutTrigger `json:"triggers,omitempty"`
 }

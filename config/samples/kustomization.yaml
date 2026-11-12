@@ -1,4 +1,5 @@
 ## Append samples of your project ##
 resources:
 - rollouts_v1alpha1_compositionrollout.yaml
+- rollouts_v1alpha1_promotionpipeline.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

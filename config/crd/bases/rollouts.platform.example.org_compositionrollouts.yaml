@@ -293,8 +293,12 @@ spec:
                   in-flight rollout) without deleting state.
                 type: boolean
               triggers:
-                description: 'Triggers is the manual control surface: start, approve,
-                  resume, abort.'
+                description: |-
+                  Triggers is the manual control surface: start, approve, resume, abort.
+                  The list is a map keyed by composition, action, and revision so a
+                  field manager can own a single entry. The promoter's Start uses
+                  field manager xr-rollout-promoter. Empty revision is a key: only one
+                  Start with an empty revision is allowed per composition.
                 items:
                   description: RolloutTrigger is the manual control surface.
                   properties:
@@ -328,6 +332,11 @@ spec:
                   - composition
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - composition
+                - action
+                - revision
+                x-kubernetes-list-type: map
               waves:
                 description: WaveSpec configures batched promotion of the remainder.
                 properties:
