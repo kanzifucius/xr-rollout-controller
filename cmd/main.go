@@ -97,8 +97,10 @@ func main() {
 	flag.BoolVar(&forceOwnership, "force-ownership", false, "Force field ownership on server-side apply patches to XRs.")
 	flag.BoolVar(&metricsAggregateOnly, "metrics-aggregate-only", false, "Drop per-composition metric labels.")
 	flag.BoolVar(&enableRollout, "enable-rollout", true, "Run the per-cluster CompositionRollout controller.")
-	flag.BoolVar(&promoterEnabled, "promoter", false, "Append Start triggers on the next cluster after the previous one completes a revision.")
-	flag.StringVar(&promoterSecretNamespace, "promoter-secret-namespace", "", "Namespace of kubeconfig Secrets. Helm passes the release namespace.")
+	flag.BoolVar(&promoterEnabled, "promoter", false,
+		"Append Start on the next cluster after the previous one completes a revision.")
+	flag.StringVar(&promoterSecretNamespace, "promoter-secret-namespace", "",
+		"Namespace of the kubeconfig Secrets. Helm passes the release namespace.")
 	opts := zap.Options{
 		Development: true,
 	}

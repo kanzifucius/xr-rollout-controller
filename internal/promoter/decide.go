@@ -94,6 +94,10 @@ func DecideHop(from, to ClusterView, composition string) Decision {
 	if !ok {
 		return Decision{Action: ActionWait, Reason: ReasonNoCompletedRevision}
 	}
+	return decideDestination(to, composition, rev)
+}
+
+func decideDestination(to ClusterView, composition, rev string) Decision {
 	d := Decision{Revision: rev}
 	if !to.Found {
 		d.Action = ActionWait
@@ -136,6 +140,10 @@ func DecideHop(from, to ClusterView, composition string) Decision {
 		d.Reason = ReasonAlreadyWritten
 		return d
 	}
+	return decideStart(to, composition, rev, d)
+}
+
+func decideStart(to ClusterView, composition, rev string, d Decision) Decision {
 	phase := to.State.Phase
 	if !to.HasState || phase == "" {
 		phase = rolloutsv1alpha1.PhaseIdle

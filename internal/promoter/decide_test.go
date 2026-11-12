@@ -34,7 +34,7 @@ func TestDecideHop(t *testing.T) {
 	notPresent.LatestRevisionName = ""
 
 	newer := readyTo(false)
-	newer.LatestRevisionName = "platformdb.example.org-bbb"
+	newer.LatestRevisionName = nextRevision
 	newer.RevisionPresent = true
 
 	ungoverned := readyTo(false)
@@ -45,36 +45,36 @@ func TestDecideHop(t *testing.T) {
 
 	alreadyWritten := readyTo(false)
 	alreadyWritten.Spec.Triggers = []rolloutsv1alpha1.RolloutTrigger{{
-		Composition: "platformdb.example.org",
+		Composition: testComposition,
 		Action:      rolloutsv1alpha1.TriggerStart,
-		Revision:    "platformdb.example.org-aaa",
+		Revision:    testRevision,
 	}}
 
 	ackedApplied := readyTo(false)
 	ackedApplied.State.AcknowledgedTriggers = []rolloutsv1alpha1.AcknowledgedTrigger{{
 		Action:   rolloutsv1alpha1.TriggerStart,
-		Revision: "platformdb.example.org-aaa",
+		Revision: testRevision,
 		Outcome:  rollout.TriggerOutcomeApplied,
 	}}
 
 	ackedStale := readyTo(false)
 	ackedStale.State.AcknowledgedTriggers = []rolloutsv1alpha1.AcknowledgedTrigger{{
 		Action:   rolloutsv1alpha1.TriggerStart,
-		Revision: "platformdb.example.org-aaa",
+		Revision: testRevision,
 		Outcome:  rollout.TriggerOutcomeStale,
 	}}
 
 	canaryingThis := readyTo(false)
 	canaryingThis.State.Phase = rolloutsv1alpha1.PhaseCanarying
-	canaryingThis.State.TargetRevision.Name = "platformdb.example.org-aaa"
+	canaryingThis.State.TargetRevision.Name = testRevision
 
 	canaryingOther := readyTo(false)
 	canaryingOther.State.Phase = rolloutsv1alpha1.PhaseCanarying
-	canaryingOther.State.TargetRevision.Name = "platformdb.example.org-bbb"
+	canaryingOther.State.TargetRevision.Name = nextRevision
 
 	pausedDest := readyTo(false)
 	pausedDest.State.Phase = rolloutsv1alpha1.PhasePaused
-	pausedDest.State.TargetRevision.Name = "platformdb.example.org-aaa"
+	pausedDest.State.TargetRevision.Name = testRevision
 
 	noState := readyTo(false)
 	noState.HasState = false
@@ -88,15 +88,16 @@ func TestDecideHop(t *testing.T) {
 	}
 
 	abortedFrom := completedFrom(rolloutsv1alpha1.PhaseIdle)
-	abortedFrom.State.AbortedRevision = "platformdb.example.org-aaa"
+	abortedFrom.State.AbortedRevision = testRevision
 
 	cases := []struct {
-		name   string
-		from   ClusterView
-		to     ClusterView
-		action string
-		reason string
-		write  bool
+		name    string
+		from    ClusterView
+		to      ClusterView
+		action  string
+		reason  string
+		write   bool
+		message string
 	}{
 		{
 			name:   "predecessor still canarying",
@@ -238,22 +239,33 @@ func TestDecideHop(t *testing.T) {
 			action: ActionRecorded,
 			reason: ReasonAlreadyStarted,
 		},
+		{
+			name:    "autoStart on the next cluster still receives Start",
+			from:    completedFrom(rolloutsv1alpha1.PhaseCompleted),
+			to:      readyTo(true),
+			action:  ActionWriteStart,
+			write:   true,
+			message: "autoStart is true on the next cluster; Start is still written, but the gate is not held for the next revision",
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			d := DecideHop(tc.from, tc.to, "platformdb.example.org")
+			d := DecideHop(tc.from, tc.to, testComposition)
 			if d.Action != tc.action || d.Reason != tc.reason {
 				t.Fatalf("DecideHop = %#v, want action %s reason %s", d, tc.action, tc.reason)
+			}
+			if tc.message != "" && d.Message != tc.message {
+				t.Fatalf("message = %q, want %q", d.Message, tc.message)
 			}
 			if !tc.write {
 				return
 			}
 			if d.Trigger.Action != rolloutsv1alpha1.TriggerStart ||
-				d.Trigger.Composition != "platformdb.example.org" ||
-				d.Trigger.Revision != "platformdb.example.org-aaa" ||
-				d.Trigger.Actor != "xr-rollout-promoter" {
+				d.Trigger.Composition != testComposition ||
+				d.Trigger.Revision != testRevision ||
+				d.Trigger.Actor != Actor {
 				t.Fatalf("trigger = %#v", d.Trigger)
 			}
 		})
@@ -267,9 +279,9 @@ func completedFrom(phase rolloutsv1alpha1.RolloutPhase) ClusterView {
 		Found:    true,
 		HasState: true,
 		State: rolloutsv1alpha1.CompositionRolloutState{
-			Composition:    "platformdb.example.org",
+			Composition:    testComposition,
 			Phase:          phase,
-			TargetRevision: rolloutsv1alpha1.RevisionInfo{Name: "platformdb.example.org-aaa", Revision: 7},
+			TargetRevision: rolloutsv1alpha1.RevisionInfo{Name: testRevision, Revision: 7},
 			CompletedAt:    &now,
 		},
 	}
@@ -285,7 +297,7 @@ func completedDestination() ClusterView {
 
 func readyTo(auto bool) ClusterView {
 	spec := rolloutsv1alpha1.CompositionRolloutSpec{
-		Compositions: []rolloutsv1alpha1.CompositionTarget{{Name: "platformdb.example.org"}},
+		Compositions: []rolloutsv1alpha1.CompositionTarget{{Name: testComposition}},
 	}
 	if !auto {
 		f := false
@@ -295,7 +307,7 @@ func readyTo(auto bool) ClusterView {
 		Engaged:            true,
 		Found:              true,
 		HasState:           true,
-		LatestRevisionName: "platformdb.example.org-aaa",
+		LatestRevisionName: testRevision,
 		RevisionPresent:    true,
 		Spec:               spec,
 		State: rolloutsv1alpha1.CompositionRolloutState{

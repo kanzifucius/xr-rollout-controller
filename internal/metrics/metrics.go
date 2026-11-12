@@ -30,6 +30,8 @@ const (
 	StateUpdated   = "updated"
 	StateHealthy   = "healthy"
 	StateUnmanaged = "unmanaged"
+
+	aggregateAll = "_all"
 )
 
 var (
@@ -110,7 +112,7 @@ func init() {
 
 func labels(rollout, composition string, aggregateOnly bool) (rolloutLabel, compositionLabel string) {
 	if aggregateOnly {
-		return "_all", "_all"
+		return aggregateAll, aggregateAll
 	}
 	return rollout, composition
 }
@@ -213,7 +215,7 @@ func IncPromotionWrite(pipeline, from, to, composition, action, reason string, a
 
 func compositionLabel(composition string, aggregateOnly bool) string {
 	if aggregateOnly {
-		return "_all"
+		return aggregateAll
 	}
 	return composition
 }

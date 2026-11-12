@@ -30,6 +30,7 @@ const (
 	testRollout     = "platformdb"
 	testComposition = "platformdb.example.org"
 	testRevision    = "platformdb.example.org-aaa"
+	nextRevision    = "platformdb.example.org-bbb"
 )
 
 type memWriter struct {
@@ -45,148 +46,144 @@ func (w *memWriter) AppendStart(_ context.Context, _ client.Client, _ string, tr
 	return nil
 }
 
-func TestReconcilePipeline(t *testing.T) {
+func TestReconcilePipelineWritesStartOnce(t *testing.T) {
 	t.Parallel()
+	views := map[string]ClusterView{
+		"dev":  completedFrom(rolloutsv1alpha1.PhaseCompleted),
+		"test": readyTo(false),
+	}
+	writer := &memWriter{}
+	hops, err := reconcileFixture(t, []string{"dev", "test"}, views, writer)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if len(writer.triggers) != 1 {
+		t.Fatalf("triggers = %#v, want one Start", writer.triggers)
+	}
+	assertHop(t, hops, "dev", "test", testRevision)
+	if writer.triggers[0].Action != rolloutsv1alpha1.TriggerStart || writer.triggers[0].Revision != testRevision {
+		t.Fatalf("trigger = %#v", writer.triggers[0])
+	}
 
-	t.Run("writes one start then does not repeat", func(t *testing.T) {
-		t.Parallel()
-		views := map[string]ClusterView{
-			"dev":  completedFrom(rolloutsv1alpha1.PhaseCompleted),
-			"test": readyTo(false),
-		}
-		writer := &memWriter{}
-		hops, err := reconcileFixture(t, []string{"dev", "test"}, views, writer)
-		if err != nil {
-			t.Fatalf("reconcile: %v", err)
-		}
-		if len(writer.triggers) != 1 {
-			t.Fatalf("triggers = %#v, want one Start", writer.triggers)
-		}
-		assertHop(t, hops, "dev", "test", testRevision)
-		if writer.triggers[0].Action != rolloutsv1alpha1.TriggerStart || writer.triggers[0].Revision != testRevision {
-			t.Fatalf("trigger = %#v", writer.triggers[0])
-		}
+	written := views["test"]
+	written.Spec.Triggers = append(written.Spec.Triggers, writer.triggers[0])
+	views["test"] = written
+	writer.triggers = nil
+	again, err := reconcileFixture(t, []string{"dev", "test"}, views, writer)
+	if err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+	if len(writer.triggers) != 0 {
+		t.Fatalf("second triggers = %#v, want none", writer.triggers)
+	}
+	if again[0].Action != ActionRecorded || again[0].Reason != ReasonAlreadyWritten {
+		t.Fatalf("second hop = %#v", again[0])
+	}
+}
 
-		written := views["test"]
-		written.Spec.Triggers = append(written.Spec.Triggers, writer.triggers[0])
-		views["test"] = written
-		writer.triggers = nil
-		again, err := reconcileFixture(t, []string{"dev", "test"}, views, writer)
-		if err != nil {
-			t.Fatalf("second reconcile: %v", err)
-		}
-		if len(writer.triggers) != 0 {
-			t.Fatalf("second triggers = %#v, want none", writer.triggers)
-		}
-		if again[0].Action != ActionRecorded || again[0].Reason != ReasonAlreadyWritten {
-			t.Fatalf("second hop = %#v", again[0])
-		}
-	})
+func TestReconcilePipelinePredecessorPaused(t *testing.T) {
+	t.Parallel()
+	writer := &memWriter{}
+	hops, err := reconcileFixture(t, []string{"dev", "test"}, map[string]ClusterView{
+		"dev":  completedFrom(rolloutsv1alpha1.PhasePaused),
+		"test": readyTo(false),
+	}, writer)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if len(writer.triggers) != 0 {
+		t.Fatalf("triggers = %#v, want none", writer.triggers)
+	}
+	if hops[0].Action != ActionBlocked || hops[0].Reason != ReasonPredecessorPaused {
+		t.Fatalf("hop = %#v", hops[0])
+	}
+	assertHop(t, hops, "dev", "test", "")
+}
 
-	t.Run("predecessor paused", func(t *testing.T) {
-		t.Parallel()
-		writer := &memWriter{}
-		hops, err := reconcileFixture(t, []string{"dev", "test"}, map[string]ClusterView{
-			"dev":  completedFrom(rolloutsv1alpha1.PhasePaused),
-			"test": readyTo(false),
-		}, writer)
-		if err != nil {
-			t.Fatalf("reconcile: %v", err)
-		}
-		if len(writer.triggers) != 0 {
-			t.Fatalf("triggers = %#v, want none", writer.triggers)
-		}
-		if hops[0].Action != ActionBlocked || hops[0].Reason != ReasonPredecessorPaused {
-			t.Fatalf("hop = %#v", hops[0])
-		}
-		assertHop(t, hops, "dev", "test", "")
-	})
+func TestReconcilePipelinePredecessorAborted(t *testing.T) {
+	t.Parallel()
+	from := completedFrom(rolloutsv1alpha1.PhaseIdle)
+	from.State.AbortedRevision = testRevision
+	writer := &memWriter{}
+	hops, err := reconcileFixture(t, []string{"dev", "test"}, map[string]ClusterView{
+		"dev":  from,
+		"test": readyTo(false),
+	}, writer)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if len(writer.triggers) != 0 {
+		t.Fatalf("triggers = %#v, want none", writer.triggers)
+	}
+	if hops[0].Action != ActionBlocked || hops[0].Reason != ReasonPredecessorAborted {
+		t.Fatalf("hop = %#v", hops[0])
+	}
+}
 
-	t.Run("predecessor aborted", func(t *testing.T) {
-		t.Parallel()
-		from := completedFrom(rolloutsv1alpha1.PhaseIdle)
-		from.State.AbortedRevision = testRevision
-		writer := &memWriter{}
-		hops, err := reconcileFixture(t, []string{"dev", "test"}, map[string]ClusterView{
-			"dev":  from,
-			"test": readyTo(false),
-		}, writer)
-		if err != nil {
-			t.Fatalf("reconcile: %v", err)
-		}
-		if len(writer.triggers) != 0 {
-			t.Fatalf("triggers = %#v, want none", writer.triggers)
-		}
-		if hops[0].Action != ActionBlocked || hops[0].Reason != ReasonPredecessorAborted {
-			t.Fatalf("hop = %#v", hops[0])
-		}
-	})
+func TestReconcilePipelineWriteFailure(t *testing.T) {
+	t.Parallel()
+	writer := &memWriter{err: fmt.Errorf("apply conflict")}
+	hops, err := reconcileFixture(t, []string{"dev", "test"}, map[string]ClusterView{
+		"dev":  completedFrom(rolloutsv1alpha1.PhaseCompleted),
+		"test": readyTo(false),
+	}, writer)
+	if err == nil || err.Error() != "apply conflict" {
+		t.Fatalf("err = %v, want apply conflict", err)
+	}
+	if hops[0].Action != ActionWait || hops[0].Reason != ReasonStartWriteFailed {
+		t.Fatalf("hop = %#v", hops[0])
+	}
+}
 
-	t.Run("write failure", func(t *testing.T) {
-		t.Parallel()
-		writer := &memWriter{err: fmt.Errorf("apply conflict")}
-		hops, err := reconcileFixture(t, []string{"dev", "test"}, map[string]ClusterView{
-			"dev":  completedFrom(rolloutsv1alpha1.PhaseCompleted),
-			"test": readyTo(false),
-		}, writer)
-		if err == nil || err.Error() != "apply conflict" {
-			t.Fatalf("err = %v, want apply conflict", err)
-		}
-		if hops[0].Action != ActionWait || hops[0].Reason != ReasonStartWriteFailed {
-			t.Fatalf("hop = %#v", hops[0])
-		}
-	})
-
-	t.Run("does not skip ahead", func(t *testing.T) {
-		t.Parallel()
-		writer := &memWriter{}
-		hops, err := reconcileFixture(t, []string{"dev", "test", "acc", "prod"}, map[string]ClusterView{
-			"dev":  completedFrom(rolloutsv1alpha1.PhaseCompleted),
-			"test": readyTo(false),
-			"acc":  readyTo(false),
-			"prod": readyTo(false),
-		}, writer)
-		if err != nil {
-			t.Fatalf("reconcile: %v", err)
-		}
-		if len(writer.triggers) != 1 {
-			t.Fatalf("triggers = %#v, want one Start for test", writer.triggers)
-		}
-		assertHop(t, hops, "dev", "test", testRevision)
-		for _, hop := range hops {
-			if hop.To == "acc" || hop.To == "prod" {
-				if hop.Reason == ReasonAlreadyWritten || hop.Action == ActionWriteStart {
-					t.Fatalf("hop %s -> %s was written: %#v", hop.From, hop.To, hop)
-				}
+func TestReconcilePipelineDoesNotSkipAhead(t *testing.T) {
+	t.Parallel()
+	writer := &memWriter{}
+	hops, err := reconcileFixture(t, []string{"dev", "test", "acc", "prod"}, map[string]ClusterView{
+		"dev":  completedFrom(rolloutsv1alpha1.PhaseCompleted),
+		"test": readyTo(false),
+		"acc":  readyTo(false),
+		"prod": readyTo(false),
+	}, writer)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if len(writer.triggers) != 1 {
+		t.Fatalf("triggers = %#v, want one Start for test", writer.triggers)
+	}
+	assertHop(t, hops, "dev", "test", testRevision)
+	for _, hop := range hops {
+		if hop.To == "acc" || hop.To == "prod" {
+			if hop.Reason == ReasonAlreadyWritten || hop.Action == ActionWriteStart {
+				t.Fatalf("hop %s -> %s was written: %#v", hop.From, hop.To, hop)
 			}
 		}
-	})
+	}
+}
 
-	t.Run("opens the cluster after one that already finished", func(t *testing.T) {
-		t.Parallel()
-		writer := &memWriter{}
-		hops, err := reconcileFixture(t, []string{"dev", "test", "acc", "prod"}, map[string]ClusterView{
-			"dev":  completedFrom(rolloutsv1alpha1.PhaseCompleted),
-			"test": completedDestination(),
-			"acc":  readyTo(false),
-			"prod": readyTo(false),
-		}, writer)
-		if err != nil {
-			t.Fatalf("reconcile: %v", err)
+func TestReconcilePipelineOpensClusterAfterFinished(t *testing.T) {
+	t.Parallel()
+	writer := &memWriter{}
+	hops, err := reconcileFixture(t, []string{"dev", "test", "acc", "prod"}, map[string]ClusterView{
+		"dev":  completedFrom(rolloutsv1alpha1.PhaseCompleted),
+		"test": completedDestination(),
+		"acc":  readyTo(false),
+		"prod": readyTo(false),
+	}, writer)
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if len(writer.triggers) != 1 {
+		t.Fatalf("triggers = %#v, want one Start for acc", writer.triggers)
+	}
+	assertHop(t, hops, "test", "acc", testRevision)
+	for _, hop := range hops {
+		if hop.To == "test" && (hop.Action == ActionWriteStart || hop.Reason == ReasonAlreadyWritten) {
+			t.Fatalf("test was written: %#v", hop)
 		}
-		if len(writer.triggers) != 1 {
-			t.Fatalf("triggers = %#v, want one Start for acc", writer.triggers)
+		if hop.To == "prod" && (hop.Action == ActionWriteStart || hop.Reason == ReasonAlreadyWritten) {
+			t.Fatalf("prod was written: %#v", hop)
 		}
-		assertHop(t, hops, "test", "acc", testRevision)
-		for _, hop := range hops {
-			if hop.To == "test" && (hop.Action == ActionWriteStart || hop.Reason == ReasonAlreadyWritten) {
-				t.Fatalf("test was written: %#v", hop)
-			}
-			if hop.To == "prod" && (hop.Action == ActionWriteStart || hop.Reason == ReasonAlreadyWritten) {
-				t.Fatalf("prod was written: %#v", hop)
-			}
-		}
-	})
+	}
 }
 
 func reconcileFixture(t *testing.T, clusters []string, views map[string]ClusterView, writer *memWriter) ([]rolloutsv1alpha1.PromotionHopStatus, error) {
