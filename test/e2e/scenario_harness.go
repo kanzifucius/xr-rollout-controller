@@ -500,6 +500,23 @@ func scaleCrossplane(replicas int) {
 		}
 		g.Expect(out).To(Equal(fmt.Sprint(replicas)))
 	}).WithTimeout(3 * time.Minute).WithPolling(2 * time.Second).Should(Succeed())
+	if replicas != 0 {
+		return
+	}
+	// A terminating Crossplane pod can still write Ready=True over a status
+	// patch. Wait until the pods are gone before the caller sets conditions.
+	Eventually(func(g Gomega) {
+		out, err := run("kubectl", "get", "pods", "-n", crossplaneNamespace, "-o", "name")
+		g.Expect(err).NotTo(HaveOccurred())
+		var left []string
+		for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "pod/crossplane-") {
+				left = append(left, line)
+			}
+		}
+		g.Expect(left).To(BeEmpty())
+	}).WithTimeout(3 * time.Minute).WithPolling(2 * time.Second).Should(Succeed())
 }
 
 func setControllerEnvironment(env string) {
