@@ -17,6 +17,8 @@ limitations under the License.
 package controller
 
 import (
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
 	"github.com/kanzifucius/xr-rollout-controller/internal/rollout"
 )
@@ -52,4 +54,19 @@ func applyRevision(
 	updated, added := rollout.RecordUpdate(state.DryRun.WouldUpdate, next)
 	state.DryRun.WouldUpdate = updated
 	return added, nil
+}
+
+func simulatedPending(pending []unstructured.Unstructured, updates []rolloutsv1alpha1.DryRunUpdate, targetRev string, dryRun bool) []unstructured.Unstructured {
+	if !dryRun {
+		return pending
+	}
+	out := make([]unstructured.Unstructured, 0, len(pending))
+	for i := range pending {
+		u := &pending[i]
+		if rollout.IsSimulated(updates, u.GetNamespace(), u.GetName(), targetRev) {
+			continue
+		}
+		out = append(out, *u)
+	}
+	return out
 }

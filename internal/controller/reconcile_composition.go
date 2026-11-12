@@ -115,11 +115,9 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 	in.CanaryAllPatched, in.CanaryFailed = r.evaluateCanaryPatchState(ctx, cr, target, state, managed, latest.name)
 	in.CanaryHealthy, in.SoakPassed, in.SoakFailed, in.WaveFailed = r.evaluateHealth(state, cr, managed, pending)
 
+	virtualPending := simulatedPending(pending, state.Simulation(), latest.name, cr.Spec.DryRunEnabled())
 	if state.Phase == rolloutsv1alpha1.PhasePromoting {
-		in.WavesComplete = len(pending) == 0 && state.Wave.Current >= state.Wave.Total && state.Wave.Total > 0
-		if in.WavesComplete && len(pending) == 0 && len(updated) == len(managed) {
-			in.WavesComplete = true
-		}
+		in.WavesComplete = len(virtualPending) == 0 && state.Wave.Current >= state.Wave.Total && state.Wave.Total > 0
 	}
 
 	out := rollout.Transition(in)
@@ -187,6 +185,9 @@ func (r *CompositionRolloutReconciler) applyTransition(
 		state.StartedAt = &now
 		state.SoakEndsAt = nil
 		state.Wave = rolloutsv1alpha1.WaveStatus{}
+		if cr.Spec.DryRunEnabled() {
+			state.DryRun = rollout.ResetSimulationLog(state.DryRun, cr.Spec.Promotion.PromotionPolicyFor(r.Environment))
+		}
 		if err := r.startCanaries(cr, target, state, managed); err != nil {
 			return err
 		}
@@ -201,7 +202,8 @@ func (r *CompositionRolloutReconciler) applyTransition(
 	}
 
 	if out.EnterPromoting {
-		state.Wave = rolloutsv1alpha1.WaveStatus{Current: 0, Total: r.waveTotal(len(pending), cr.Spec.Waves.BatchSize)}
+		remainder := simulatedPending(pending, state.Simulation(), latest.name, cr.Spec.DryRunEnabled())
+		state.Wave = rolloutsv1alpha1.WaveStatus{Current: 0, Total: r.waveTotal(len(remainder), cr.Spec.Waves.BatchSize)}
 		r.Recorder.Eventf(cr, "Normal", "Approved", "composition %s entering promotion", target.Name)
 	}
 
@@ -225,7 +227,11 @@ func (r *CompositionRolloutReconciler) applyTransition(
 	case rolloutsv1alpha1.PhaseCanarying:
 		return r.patchCanaries(ctx, cr, target, state, managed, latest.name)
 	case rolloutsv1alpha1.PhasePromoting:
-		return r.promoteWave(ctx, cr, target, state, pending, latest.name)
+		wavePending := pending
+		if cr.Spec.DryRunEnabled() {
+			wavePending = simulatedPending(pending, state.Simulation(), latest.name, true)
+		}
+		return r.promoteWave(ctx, cr, target, state, wavePending, latest.name)
 	case rolloutsv1alpha1.PhaseIdle,
 		rolloutsv1alpha1.PhaseSoaking,
 		rolloutsv1alpha1.PhaseAwaitingApproval,

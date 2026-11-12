@@ -20,6 +20,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/record"
@@ -117,4 +118,76 @@ func TestPatchCanariesDryRunLeavesTheXRUntouched(t *testing.T) {
 	default:
 		t.Fatal("expected a DryRun event")
 	}
+}
+
+func TestSimulatedPendingIgnoresTheLogWhenDryRunIsOff(t *testing.T) {
+	t.Parallel()
+	pending := []unstructured.Unstructured{xrNamed("payments", "a"), xrNamed("payments", "b")}
+	log := []rolloutsv1alpha1.DryRunUpdate{{
+		Namespace: "payments", Name: "a", Revision: "rev-new", Stage: rolloutsv1alpha1.DryRunStageCanary,
+	}}
+	if got := simulatedPending(pending, log, "rev-new", false); len(got) != 2 {
+		t.Fatalf("live pending = %d, want 2", len(got))
+	}
+	got := simulatedPending(pending, log, "rev-new", true)
+	if len(got) != 1 || got[0].GetName() != "b" {
+		t.Fatalf("virtual pending = %v", namesOf(got))
+	}
+}
+
+func TestEvaluateCanaryPatchStateTreatsSimulationAsPatched(t *testing.T) {
+	t.Parallel()
+	r := &CompositionRolloutReconciler{}
+	on := true
+	cr := &rolloutsv1alpha1.CompositionRollout{}
+	cr.Spec.DryRun = &on
+	state := &rolloutsv1alpha1.CompositionRolloutState{
+		Phase: rolloutsv1alpha1.PhaseCanarying,
+		Canary: rolloutsv1alpha1.CanaryStatus{
+			Selected: []rolloutsv1alpha1.XRRef{{Namespace: "payments", Name: "a"}},
+		},
+		DryRun: &rolloutsv1alpha1.DryRunStatus{
+			Active: true,
+			WouldUpdate: []rolloutsv1alpha1.DryRunUpdate{{
+				Namespace: "payments", Name: "a", Revision: "rev-new", Stage: rolloutsv1alpha1.DryRunStageCanary,
+			}},
+		},
+	}
+	managed := []unstructured.Unstructured{xrNamed("payments", "a")}
+	xp.SetCompositionRevisionRef(&managed[0], "rev-old")
+	readySince := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	_ = unstructured.SetNestedSlice(managed[0].Object, []interface{}{
+		map[string]interface{}{"type": "Ready", "status": "True", "lastTransitionTime": readySince},
+		map[string]interface{}{"type": "Synced", "status": "True", "lastTransitionTime": readySince},
+	}, "status", "conditions")
+
+	allPatched, failed := r.evaluateCanaryPatchState(context.Background(), cr, rolloutsv1alpha1.CompositionTarget{}, state, managed, "rev-new")
+	if !allPatched || failed {
+		t.Fatalf("dry run patched=%v failed=%v", allPatched, failed)
+	}
+	if xp.GetCompositionRevisionRef(&managed[0]) != "rev-old" {
+		t.Fatalf("evaluation wrote the ref: %s", xp.GetCompositionRevisionRef(&managed[0]))
+	}
+
+	off := false
+	cr.Spec.DryRun = &off
+	allPatched, failed = r.evaluateCanaryPatchState(context.Background(), cr, rolloutsv1alpha1.CompositionTarget{}, state, managed, "rev-new")
+	if allPatched {
+		t.Fatalf("real evaluation treated the log as a patch")
+	}
+}
+
+func xrNamed(namespace, name string) unstructured.Unstructured {
+	u := unstructured.Unstructured{}
+	u.SetNamespace(namespace)
+	u.SetName(name)
+	return u
+}
+
+func namesOf(items []unstructured.Unstructured) []string {
+	out := make([]string, 0, len(items))
+	for i := range items {
+		out = append(out, items[i].GetName())
+	}
+	return out
 }
