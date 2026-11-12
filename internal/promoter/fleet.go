@@ -21,7 +21,9 @@ import (
 	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -41,7 +43,7 @@ func viewComposition(ctx context.Context, cl client.Client, rolloutName, composi
 		}
 		return ClusterView{}, fmt.Errorf("get CompositionRollout %s: %w", rolloutName, err)
 	}
-	view := ClusterView{Engaged: true, Found: true, Spec: cr.Spec}
+	view := ClusterView{Engaged: true, Found: true, Spec: cr.Spec, Labels: cr.GetLabels()}
 	for i := range cr.Status.Rollouts {
 		if cr.Status.Rollouts[i].Composition == composition {
 			view.State = cr.Status.Rollouts[i]
@@ -86,6 +88,81 @@ func latestRevision(ctx context.Context, cl client.Client, composition, wantRevi
 		}
 	}
 	return latest, present, nil
+}
+
+func countFleet(
+	ctx context.Context,
+	pipeline *rolloutsv1alpha1.PromotionPipeline,
+	fromName, composition, revision string,
+	selector *metav1.LabelSelector,
+	read func(clusterName, rolloutName, composition, wantRevision string) (ClusterView, error),
+	clFor func(clusterName string) (client.Client, error),
+) (int, int, error) {
+	names, compositions, err := catalogFor(ctx, pipeline, clFor)
+	if err != nil {
+		return 0, 0, err
+	}
+	matching := 0
+	completed := 0
+	for _, rolloutName := range names {
+		if !containsName(compositions[rolloutName], composition) {
+			continue
+		}
+		view, err := read(fromName, rolloutName, composition, revision)
+		if err != nil {
+			return 0, 0, err
+		}
+		inFleet, err := inPromotionFleet(view, composition, selector)
+		if err != nil {
+			return 0, 0, err
+		}
+		if !inFleet {
+			continue
+		}
+		matching++
+		if fleetCompleted(pipeline, view, fromName, rolloutName, composition, revision) {
+			completed++
+		}
+	}
+	return matching, completed, nil
+}
+
+func inPromotionFleet(view ClusterView, composition string, selector *metav1.LabelSelector) (bool, error) {
+	if !view.Found || !governs(view.Spec, composition) {
+		return false, nil
+	}
+	return fleetSelectorMatches(selector, view.Labels)
+}
+
+func fleetCompleted(pipeline *rolloutsv1alpha1.PromotionPipeline, view ClusterView, fromName, rolloutName, composition, revision string) bool {
+	if viewIsDryRun(view) {
+		return false
+	}
+	if rev, ok := matchingSkip(pipeline, fromName, rolloutName, composition); ok && rev == revision {
+		return true
+	}
+	got, ok := completedRevision(view)
+	return ok && got == revision
+}
+
+func fleetSelectorMatches(selector *metav1.LabelSelector, lbls map[string]string) (bool, error) {
+	if selector == nil {
+		return true, nil
+	}
+	parsed, err := metav1.LabelSelectorAsSelector(selector)
+	if err != nil {
+		return false, fmt.Errorf("parse fleet selector: %w", err)
+	}
+	return parsed.Matches(labels.Set(lbls)), nil
+}
+
+func containsName(names []string, want string) bool {
+	for _, name := range names {
+		if name == want {
+			return true
+		}
+	}
+	return false
 }
 
 func revisionNumber(obj *unstructured.Unstructured) (int64, bool) {

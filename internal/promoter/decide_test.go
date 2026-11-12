@@ -18,6 +18,7 @@ package promoter
 
 import (
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -311,6 +312,199 @@ func TestDecideHop(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDecideHopPolicyGates(t *testing.T) {
+	t.Parallel()
+	completedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	from := completedFrom(rolloutsv1alpha1.PhaseCompleted)
+	from.State.CompletedAt = &metav1.Time{Time: completedAt}
+	idle := readyTo(false)
+	newer := readyTo(false)
+	newer.LatestRevisionName = nextRevision
+
+	cases := []struct {
+		name    string
+		from    ClusterView
+		to      ClusterView
+		policy  HopPolicy
+		action  string
+		reason  string
+		write   bool
+		message string
+	}{
+		{
+			name:   "approval required without an Approve trigger",
+			from:   from,
+			to:     idle,
+			policy: HopPolicy{Approval: rolloutsv1alpha1.PromotionApprovalApprove},
+			action: ActionWait,
+			reason: ReasonApprovalRequired,
+		},
+		{
+			name:   "approval granted writes Start",
+			from:   from,
+			to:     idle,
+			policy: HopPolicy{Approval: rolloutsv1alpha1.PromotionApprovalApprove, Approved: true},
+			action: ActionWriteStart,
+			write:  true,
+		},
+		{
+			name:   "revision match holds a different composition revision",
+			from:   from,
+			to:     newer,
+			policy: HopPolicy{RevisionMatch: true},
+			action: ActionWait,
+			reason: ReasonRevisionMismatch,
+		},
+		{
+			name:   "revision match writes the same revision",
+			from:   from,
+			to:     idle,
+			policy: HopPolicy{RevisionMatch: true},
+			action: ActionWriteStart,
+			write:  true,
+		},
+		{
+			name:   "inter-cluster soak waits after completion",
+			from:   from,
+			to:     idle,
+			policy: HopPolicy{Now: completedAt.Add(30 * time.Minute), Soak: time.Hour},
+			action: ActionWait,
+			reason: ReasonInterClusterSoak,
+		},
+		{
+			name:   "inter-cluster soak elapsed writes Start",
+			from:   from,
+			to:     idle,
+			policy: HopPolicy{Now: completedAt.Add(time.Hour), Soak: time.Hour},
+			action: ActionWriteStart,
+			write:  true,
+		},
+		{
+			name:   "partial fleet below the percentage waits",
+			from:   from,
+			to:     idle,
+			policy: HopPolicy{FleetEnabled: true, MinCompletedPercent: 50, FleetMatching: 4, FleetCompleted: 1},
+			action: ActionWait,
+			reason: ReasonFleetIncomplete,
+		},
+		{
+			name:   "partial fleet at the percentage writes Start",
+			from:   from,
+			to:     idle,
+			policy: HopPolicy{FleetEnabled: true, MinCompletedPercent: 50, FleetMatching: 4, FleetCompleted: 2},
+			action: ActionWriteStart,
+			write:  true,
+		},
+		{
+			name:   "unset fleet ignores the counts",
+			from:   from,
+			to:     idle,
+			policy: HopPolicy{FleetMatching: 4, FleetCompleted: 0},
+			action: ActionWriteStart,
+			write:  true,
+		},
+		{
+			name:   "skip satisfies a cluster that has not completed",
+			from:   completedFrom(rolloutsv1alpha1.PhaseCanarying),
+			to:     idle,
+			policy: HopPolicy{SkipRevision: testRevision},
+			action: ActionWriteStart,
+			write:  true,
+		},
+		{
+			name:   "skip does not write when the predecessor is a dry run",
+			from:   dryRunView(from),
+			to:     idle,
+			policy: HopPolicy{SkipRevision: testRevision},
+			action: ActionBlocked,
+			reason: ReasonDryRun,
+		},
+		{
+			name:   "dry-run chain records Start and does not ask for a write",
+			from:   finishedSimulation(),
+			to:     idle,
+			policy: HopPolicy{DryRunChain: true},
+			action: ActionRecorded,
+			reason: ReasonDryRunRecorded,
+			write:  true,
+		},
+		{
+			name:   "dry-run chain stays blocked until the simulation finishes",
+			from:   dryRunView(from),
+			to:     idle,
+			policy: HopPolicy{DryRunChain: true},
+			action: ActionBlocked,
+			reason: ReasonDryRun,
+		},
+		{
+			name:   "dry-run chain does not record onto a dry-run destination",
+			from:   finishedSimulation(),
+			to:     dryRunView(idle),
+			policy: HopPolicy{DryRunChain: true},
+			action: ActionBlocked,
+			reason: ReasonDryRun,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			d := DecideHopPolicy(tc.from, tc.to, testComposition, tc.policy)
+			if d.Action != tc.action || d.Reason != tc.reason {
+				t.Fatalf("DecideHopPolicy = %#v, want action %s reason %s", d, tc.action, tc.reason)
+			}
+			if tc.message != "" && d.Message != tc.message {
+				t.Fatalf("message = %q, want %q", d.Message, tc.message)
+			}
+			if tc.reason == ReasonDryRunRecorded && (d.Trigger.Action != rolloutsv1alpha1.TriggerStart || d.Trigger.Revision != testRevision || d.Trigger.Actor != Actor) {
+				t.Fatalf("recorded trigger = %#v", d.Trigger)
+			}
+			if !tc.write || tc.reason == ReasonDryRunRecorded {
+				if tc.reason != ReasonDryRunRecorded && d.Trigger.Action != "" {
+					t.Fatalf("trigger = %#v, want empty", d.Trigger)
+				}
+				return
+			}
+			if d.Trigger.Action != rolloutsv1alpha1.TriggerStart || d.Trigger.Revision != testRevision || d.Trigger.Actor != Actor {
+				t.Fatalf("trigger = %#v", d.Trigger)
+			}
+		})
+	}
+}
+
+func TestFleetSatisfiedRoundsUp(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name           string
+		matching, done int
+		percent        int32
+		want           bool
+	}{
+		{name: "half of one", matching: 1, done: 1, percent: 50, want: true},
+		{name: "half of two needs one", matching: 2, done: 1, percent: 50, want: true},
+		{name: "every one of two", matching: 2, done: 1, percent: 100, want: false},
+		{name: "half of three needs two", matching: 3, done: 1, percent: 50, want: false},
+		{name: "empty fleet", matching: 0, done: 0, percent: 100, want: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := fleetSatisfied(tc.matching, tc.done, tc.percent)
+			if got != tc.want {
+				t.Fatalf("fleetSatisfied(%d, %d, %d) = %v, want %v", tc.matching, tc.done, tc.percent, got, tc.want)
+			}
+		})
+	}
+}
+
+func finishedSimulation() ClusterView {
+	done := metav1.NewTime(time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC))
+	view := dryRunView(completedFrom(rolloutsv1alpha1.PhaseIdle))
+	view.State.CompletedAt = nil
+	view.State.TargetRevision.Name = testRevision
+	view.State.DryRun = &rolloutsv1alpha1.DryRunStatus{Active: true, CompletedAt: &done}
+	return view
 }
 
 func completedFrom(phase rolloutsv1alpha1.RolloutPhase) ClusterView {

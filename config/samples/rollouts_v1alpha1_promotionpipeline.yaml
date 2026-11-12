@@ -3,8 +3,25 @@ kind: PromotionPipeline
 metadata:
   name: environments
 spec:
+  # dryRunChain: true  # record the next Start when the previous rollout is a dry run; do not write it
   clusters:
     - name: dev
     - name: test
+    # Leave approval unset on dev and test so those hops stay automatic.
+    # acc and prod can require an Approve trigger before Start is written.
     - name: acc
+      # approval: Approve
+      # revisionMatch: true
+      # soak: 1h
+      # minCompletedPercent: 100
     - name: prod
+      # approval: Approve
+  # triggers:
+  #   - cluster: acc
+  #     action: Approve
+  #     revision: platformdb.example.org-aaa
+  #     rollout: team-payments
+  #     composition: platformdb.example.org
+  #   - cluster: test
+  #     action: Skip
+  #     revision: platformdb.example.org-aaa

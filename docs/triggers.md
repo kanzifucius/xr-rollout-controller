@@ -13,6 +13,8 @@ Each entry names the composition, the action, an optional revision, and an optio
 
 A promoter may append `Start` for one revision. The controller still only acknowledges that entry. A `Stale` acknowledgement is not retried for that revision.
 
+Cross-cluster `Approve` and `Skip` are triggers on the `PromotionPipeline`, not on this object. The spoke controller does not consume them. See [Promotion across clusters](promotion.md#optional-hop-rules).
+
 A trigger that does not match the phase or revision is acknowledged with outcome `Stale` and does not change the phase. `autoStart` will not immediately start a rollout for a revision that was aborted. A later `Start` can run that revision again from `Canarying`.
 
 Abort does not revert XRs. Canaries already on the new revision stay there. The rest stay on the old one until a later rollout moves them.
