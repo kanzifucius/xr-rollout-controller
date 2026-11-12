@@ -173,8 +173,8 @@ func TestEvaluateCanaryPatchStateTreatsSimulationAsPatched(t *testing.T) {
 	off := false
 	cr.Spec.DryRun = &off
 	allPatched, failed = r.evaluateCanaryPatchState(context.Background(), cr, rolloutsv1alpha1.CompositionTarget{}, state, managed, "rev-new")
-	if allPatched {
-		t.Fatalf("real evaluation treated the log as a patch")
+	if allPatched || failed {
+		t.Fatalf("real evaluation treated the log as a patch (patched=%v failed=%v)", allPatched, failed)
 	}
 }
 
