@@ -27,6 +27,23 @@ forceOwnership: false
 # Sets --metrics-aggregate-only when true.
 metricsAggregateOnly: false
 
+# Runs the per-cluster CompositionRollout controller.
+# A management cluster that only promotes sets this to false.
+rollout:
+  enabled: true
+
+# Cross-cluster Start promoter. Spoke installs leave this false.
+promoter:
+  enabled: false
+  # Empty means the release namespace.
+  secretNamespace: ""
+  # Between 2 and 32 unique names, each at most 253 characters.
+  clusters:
+    - dev
+    - test
+    - acc
+    - prod
+
 leaderElection:
   enabled: true
 

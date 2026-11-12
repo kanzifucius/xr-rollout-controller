@@ -1,0 +1,10 @@
+apiVersion: rollouts.platform.example.org/v1alpha1
+kind: PromotionPipeline
+metadata:
+  name: environments
+spec:
+  clusters:
+    - name: dev
+    - name: test
+    - name: acc
+    - name: prod

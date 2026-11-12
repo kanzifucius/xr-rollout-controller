@@ -26,3 +26,5 @@ A cluster installed with `--set environment=prod` waits. A cluster installed wit
 `AwaitingApproval` is also a status condition on the `CompositionRollout`, so a release process can watch one object instead of the whole fleet.
 
 The approval itself is a `spec.triggers` entry, not an annotation. See [Triggers](triggers.md).
+
+Cross-cluster order is a different mechanism from `spec.promotion.environments`. The environment map still decides `AutoPromote` or `ManualApproval` inside the cluster after soak. See [Promotion across clusters](promotion.md).

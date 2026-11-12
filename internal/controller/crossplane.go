@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
+	"github.com/kanzifucius/xr-rollout-controller/internal/xp"
 )
 
 var (
@@ -43,7 +44,7 @@ type revisionRecord struct {
 
 func (r *CompositionRolloutReconciler) latestCompositionRevision(ctx context.Context, compositionName string) (revisionRecord, error) {
 	ul, err := r.Dynamic.Resource(compositionRevisionGVR).List(ctx, metav1.ListOptions{
-		LabelSelector: labelCompositionName + "=" + compositionName,
+		LabelSelector: xp.CompositionNameLabel + "=" + compositionName,
 	})
 	if err != nil {
 		return revisionRecord{}, err
@@ -120,7 +121,7 @@ func fleetSourceRevision(managed []unstructured.Unstructured, revByName map[stri
 
 func buildRevisionMap(ctx context.Context, r *CompositionRolloutReconciler, compositionName string) (map[string]int64, error) {
 	ul, err := r.Dynamic.Resource(compositionRevisionGVR).List(ctx, metav1.ListOptions{
-		LabelSelector: labelCompositionName + "=" + compositionName,
+		LabelSelector: xp.CompositionNameLabel + "=" + compositionName,
 	})
 	if err != nil {
 		return nil, err

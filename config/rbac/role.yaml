@@ -42,7 +42,16 @@ rules:
   - rollouts.platform.example.org
   resources:
   - compositionrollouts/status
+  - promotionpipelines/status
   verbs:
   - get
   - patch
   - update
+- apiGroups:
+  - rollouts.platform.example.org
+  resources:
+  - promotionpipelines
+  verbs:
+  - get
+  - list
+  - watch

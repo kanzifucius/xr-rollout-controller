@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/rollouts.platform.example.org_compositionrollouts.yaml
+- bases/rollouts.platform.example.org_promotionpipelines.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

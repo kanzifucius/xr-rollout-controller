@@ -2,7 +2,7 @@
 
 `spec.triggers` is the manual control surface. The controller never deletes or edits spec (GitOps would fight that). It records consumption on `status.rollouts[].acknowledgedTriggers`. A trigger already acknowledged for the same composition, action, and revision is a no-op.
 
-Each entry names the composition, the action, an optional revision, and an optional `actor` string for audit.
+Each entry names the composition, the action, an optional revision, and an optional `actor` string for audit. An omitted `Start` revision is stored as an empty string. That empty string is the map key for latest.
 
 | Action | When it applies | Revision |
 |--------|-----------------|----------|
@@ -10,6 +10,8 @@ Each entry names the composition, the action, an optional revision, and an optio
 | `Approve` | Phase is `AwaitingApproval`. Enters `Promoting`. | Required, and must equal the target revision. |
 | `Resume` | Phase is `Paused`. Returns to the phase stored in `phaseBeforePause` (or `Canarying` if that is empty) and clears the pause reason. | Required, and must equal the target revision. |
 | `Abort` | Phase is `AwaitingApproval` or `Paused`. Moves to `Aborted`, then `Idle`. | Required, and must equal the target revision. |
+
+A promoter may append `Start` for one revision. The controller still only acknowledges that entry. A `Stale` acknowledgement is not retried for that revision.
 
 A trigger that does not match the phase or revision is acknowledged with outcome `Stale` and does not change the phase. `autoStart` will not immediately start a rollout for a revision that was aborted. A later `Start` can run that revision again from `Canarying`.
 

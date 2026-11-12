@@ -32,15 +32,18 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
 	"github.com/kanzifucius/xr-rollout-controller/internal/controller"
 	_ "github.com/kanzifucius/xr-rollout-controller/internal/metrics"
+	"github.com/kanzifucius/xr-rollout-controller/internal/promoter"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -69,6 +72,9 @@ func main() {
 	var environment string
 	var forceOwnership bool
 	var metricsAggregateOnly bool
+	var enableRollout bool
+	var promoterEnabled bool
+	var promoterSecretNamespace string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
@@ -90,6 +96,11 @@ func main() {
 	flag.StringVar(&environment, "environment", "dev", "Deployment environment name for promotion policy lookup.")
 	flag.BoolVar(&forceOwnership, "force-ownership", false, "Force field ownership on server-side apply patches to XRs.")
 	flag.BoolVar(&metricsAggregateOnly, "metrics-aggregate-only", false, "Drop per-composition metric labels.")
+	flag.BoolVar(&enableRollout, "enable-rollout", true, "Run the per-cluster CompositionRollout controller.")
+	flag.BoolVar(&promoterEnabled, "promoter", false,
+		"Append Start on the next cluster after the previous one completes a revision.")
+	flag.StringVar(&promoterSecretNamespace, "promoter-secret-namespace", "",
+		"Namespace of the kubeconfig Secrets. Helm passes the release namespace.")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -212,23 +223,53 @@ func main() {
 		os.Exit(1)
 	}
 
-	dyn, err := dynamic.NewForConfig(restConfig)
-	if err != nil {
-		setupLog.Error(err, "unable to create dynamic client")
-		os.Exit(1)
-	}
+	if enableRollout {
+		dyn, err := dynamic.NewForConfig(restConfig)
+		if err != nil {
+			setupLog.Error(err, "unable to create dynamic client")
+			os.Exit(1)
+		}
 
-	if err = (&controller.CompositionRolloutReconciler{
-		Client:               mgr.GetClient(),
-		Scheme:               mgr.GetScheme(),
-		Dynamic:              dyn,
-		Recorder:             mgr.GetEventRecorderFor("xr-rollout-controller"),
-		Environment:          environment,
-		ForceOwnership:       forceOwnership,
-		MetricsAggregateOnly: metricsAggregateOnly,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "CompositionRollout")
-		os.Exit(1)
+		if err = (&controller.CompositionRolloutReconciler{
+			Client:               mgr.GetClient(),
+			Scheme:               mgr.GetScheme(),
+			Dynamic:              dyn,
+			Recorder:             mgr.GetEventRecorderFor("xr-rollout-controller"),
+			Environment:          environment,
+			ForceOwnership:       forceOwnership,
+			MetricsAggregateOnly: metricsAggregateOnly,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "CompositionRollout")
+			os.Exit(1)
+		}
+	}
+	if promoterEnabled {
+		provider := promoter.NewKubeconfigProvider(promoter.KubeconfigOptions{
+			Namespace: promoterSecretNamespace,
+			ClusterOptions: []cluster.Option{
+				func(options *cluster.Options) {
+					options.Scheme = scheme
+				},
+			},
+		})
+		mcMgr, err := mcmanager.WithMultiCluster(mgr, provider)
+		if err != nil {
+			setupLog.Error(err, "unable to wrap manager")
+			os.Exit(1)
+		}
+		if err := provider.SetupWithManager(mcMgr); err != nil {
+			setupLog.Error(err, "unable to start kubeconfig provider")
+			os.Exit(1)
+		}
+		if err := (&promoter.PromoterReconciler{
+			Local:                mgr.GetClient(),
+			Provider:             provider,
+			Writer:               promoter.NewSSAWriter(),
+			MetricsAggregateOnly: metricsAggregateOnly,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "PromotionPipeline")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 
