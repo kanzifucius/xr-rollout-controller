@@ -358,10 +358,17 @@ func (r *CompositionRolloutReconciler) patchCanaries(
 		if _, ok := canarySet[key]; !ok {
 			continue
 		}
-		if xp.GetCompositionRevisionRef(u) == revName {
+		ref := rolloutsv1alpha1.XRRef{Namespace: u.GetNamespace(), Name: u.GetName()}
+		if cr.Spec.DryRunEnabled() && rollout.IsSimulated(state.Simulation(), ref.Namespace, ref.Name, revName) {
 			continue
 		}
-		if err := r.patchXRRevision(ctx, u, revName); err != nil {
+		if !cr.Spec.DryRunEnabled() && xp.GetCompositionRevisionRef(u) == revName {
+			continue
+		}
+		added, err := applyRevision(cr.Spec.DryRunEnabled(), state, ref, revName, rolloutsv1alpha1.DryRunStageCanary, 0, func() error {
+			return r.patchXRRevision(ctx, u, revName)
+		})
+		if err != nil {
 			metrics.IncUpdateErrors(cr.Name, target.Name, r.MetricsAggregateOnly)
 			state.Phase = rolloutsv1alpha1.PhasePaused
 			state.PhaseBeforePause = rolloutsv1alpha1.PhaseCanarying
@@ -372,6 +379,12 @@ func (r *CompositionRolloutReconciler) patchCanaries(
 			metrics.IncPause(cr.Name, target.Name, rolloutsv1alpha1.PauseReasonPatchFailed, r.MetricsAggregateOnly)
 			r.Recorder.Eventf(cr, "Warning", "RolloutPaused", "composition %s paused: %s", target.Name, err.Error())
 			return nil
+		}
+		if cr.Spec.DryRunEnabled() {
+			if added {
+				r.Recorder.Eventf(cr, "Normal", "DryRun", "composition %s would set %s compositionRevisionRef to %s", target.Name, ref.String(), revName)
+			}
+			continue
 		}
 		metrics.IncUpdates(cr.Name, target.Name, r.MetricsAggregateOnly)
 	}
@@ -416,34 +429,61 @@ func (r *CompositionRolloutReconciler) promoteWave(
 		return nil
 	}
 
-	sem := semaphore.NewWeighted(int64(cr.Spec.Waves.MaxConcurrent()))
-	eg, egCtx := errgroup.WithContext(ctx)
-	for i := range wave {
-		c := wave[i]
-		if err := sem.Acquire(egCtx, 1); err != nil {
-			return err
-		}
-		eg.Go(func() error {
-			defer sem.Release(1)
-			u, ok := findXR(pending, c.Namespace, c.Name)
-			if !ok {
+	if cr.Spec.DryRunEnabled() {
+		for i := range wave {
+			c := wave[i]
+			ref := rolloutsv1alpha1.XRRef{Namespace: c.Namespace, Name: c.Name}
+			added, err := applyRevision(true, state, ref, revName, rolloutsv1alpha1.DryRunStageWave, state.Wave.Current+1, func() error {
 				return nil
-			}
-			if err := r.patchXRRevision(egCtx, u, revName); err != nil {
-				metrics.IncUpdateErrors(cr.Name, target.Name, r.MetricsAggregateOnly)
+			})
+			if err != nil {
 				return err
 			}
-			metrics.IncUpdates(cr.Name, target.Name, r.MetricsAggregateOnly)
-			return nil
-		})
-	}
-	if err := eg.Wait(); err != nil {
-		state.Phase = rolloutsv1alpha1.PhasePaused
-		state.PauseReason = &rolloutsv1alpha1.PauseReason{
-			Reason:  rolloutsv1alpha1.PauseReasonPatchFailed,
-			Message: err.Error(),
+			if added {
+				r.Recorder.Eventf(cr, "Normal", "DryRun", "composition %s would set %s compositionRevisionRef to %s", target.Name, ref.String(), revName)
+			}
 		}
-		return nil
+	} else {
+		sem := semaphore.NewWeighted(int64(cr.Spec.Waves.MaxConcurrent()))
+		eg, egCtx := errgroup.WithContext(ctx)
+		for i := range wave {
+			c := wave[i]
+			if err := sem.Acquire(egCtx, 1); err != nil {
+				return err
+			}
+			eg.Go(func() error {
+				defer sem.Release(1)
+				u, ok := findXR(pending, c.Namespace, c.Name)
+				if !ok {
+					return nil
+				}
+				ref := rolloutsv1alpha1.XRRef{Namespace: c.Namespace, Name: c.Name}
+				waveNo := state.Wave.Current + 1
+				added, err := applyRevision(false, state, ref, revName, rolloutsv1alpha1.DryRunStageWave, waveNo, func() error {
+					return r.patchXRRevision(egCtx, u, revName)
+				})
+				if err != nil {
+					metrics.IncUpdateErrors(cr.Name, target.Name, r.MetricsAggregateOnly)
+					return err
+				}
+				if cr.Spec.DryRunEnabled() {
+					if added {
+						r.Recorder.Eventf(cr, "Normal", "DryRun", "composition %s would set %s compositionRevisionRef to %s", target.Name, ref.String(), revName)
+					}
+					return nil
+				}
+				metrics.IncUpdates(cr.Name, target.Name, r.MetricsAggregateOnly)
+				return nil
+			})
+		}
+		if err := eg.Wait(); err != nil {
+			state.Phase = rolloutsv1alpha1.PhasePaused
+			state.PauseReason = &rolloutsv1alpha1.PauseReason{
+				Reason:  rolloutsv1alpha1.PauseReasonPatchFailed,
+				Message: err.Error(),
+			}
+			return nil
+		}
 	}
 
 	state.Wave.Current++
