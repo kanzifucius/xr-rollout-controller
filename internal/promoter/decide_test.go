@@ -231,6 +231,13 @@ func TestDecideHop(t *testing.T) {
 			action: ActionWriteStart,
 			write:  true,
 		},
+		{
+			name:   "destination already completed this revision",
+			from:   completedFrom(rolloutsv1alpha1.PhaseCompleted),
+			to:     completedDestination(),
+			action: ActionRecorded,
+			reason: ReasonAlreadyStarted,
+		},
 	}
 
 	for _, tc := range cases {
@@ -266,6 +273,14 @@ func completedFrom(phase rolloutsv1alpha1.RolloutPhase) ClusterView {
 			CompletedAt:    &now,
 		},
 	}
+}
+
+func completedDestination() ClusterView {
+	to := readyTo(false)
+	done := completedFrom(rolloutsv1alpha1.PhaseIdle)
+	to.State = done.State
+	to.HasState = true
+	return to
 }
 
 func readyTo(auto bool) ClusterView {

@@ -35,8 +35,6 @@ import (
 )
 
 const (
-	labelCompositionName = "crossplane.io/composition-name"
-
 	compRevGVKGroup   = "apiextensions.crossplane.io"
 	compRevGVKVersion = "v1"
 	compRevGVKKind    = "CompositionRevision"
@@ -74,7 +72,7 @@ func (r *CompositionRolloutReconciler) mapCompositionRevision(ctx context.Contex
 	if !ok {
 		return nil
 	}
-	compName := u.GetLabels()[labelCompositionName]
+	compName := u.GetLabels()[xp.CompositionNameLabel]
 	if compName == "" {
 		return nil
 	}

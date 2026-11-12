@@ -155,6 +155,14 @@ func DecideHop(from, to ClusterView, composition string) Decision {
 		}
 		return d
 	}
+	// Idle after the Completed blink still has completedAt. Writing Start
+	// would run the revision again.
+	if phase == rolloutsv1alpha1.PhaseIdle && to.HasState && to.State.CompletedAt != nil &&
+		to.State.TargetRevision.Name == rev && to.State.AbortedRevision != rev {
+		d.Action = ActionRecorded
+		d.Reason = ReasonAlreadyStarted
+		return d
+	}
 	if to.State.AbortedRevision == rev {
 		d.Action = ActionBlocked
 		d.Reason = ReasonDestinationAborted

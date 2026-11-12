@@ -17,9 +17,12 @@ limitations under the License.
 package metrics
 
 import (
-	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
+	"sync"
+
 	"github.com/prometheus/client_golang/prometheus"
 	crmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
+
+	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
 )
 
 const (
@@ -59,7 +62,38 @@ var (
 		Name: "xr_rollout_pauses_total",
 		Help: "Rollout pause events by reason.",
 	}, []string{"rollout", "composition", "reason"})
+
+	promotionHops = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "xr_rollout_promotion_hops",
+		Help: "Cross-cluster promotion hop. 1 for the current action and reason.",
+	}, []string{"pipeline", "from", "to", "composition", "action", "reason"})
+
+	promotionWrites = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "xr_rollout_promotion_writes_total",
+		Help: "Start triggers the promoter appended on the next cluster.",
+	}, []string{"pipeline", "from", "to", "composition", "action", "reason"})
+
+	promotionHopMu     sync.Mutex
+	promotionHopSeries = map[string][]promotionSeries{}
 )
+
+// PromotionHop is one hop observation for the promotion gauge.
+type PromotionHop struct {
+	From        string
+	To          string
+	Composition string
+	Action      string
+	Reason      string
+}
+
+type promotionSeries struct {
+	pipeline    string
+	from        string
+	to          string
+	composition string
+	action      string
+	reason      string
+}
 
 func init() {
 	crmetrics.Registry.MustRegister(
@@ -69,6 +103,8 @@ func init() {
 		updatesTotal,
 		updateErrorsTotal,
 		pausesTotal,
+		promotionHops,
+		promotionWrites,
 	)
 }
 
@@ -132,4 +168,61 @@ func IncUpdateErrors(rollout, composition string, aggregateOnly bool) {
 func IncPause(rollout, composition, reason string, aggregateOnly bool) {
 	r, c := labels(rollout, composition, aggregateOnly)
 	pausesTotal.WithLabelValues(r, c, reason).Inc()
+}
+
+// SetPromotionHops sets the current hop gauges and zeroes series from the
+// previous reconcile of this pipeline that are no longer present.
+// MetricsAggregateOnly keeps the composition label and sets it to _all.
+func SetPromotionHops(pipeline string, hops []PromotionHop, aggregateOnly bool) {
+	next := make([]promotionSeries, 0, len(hops))
+	for _, hop := range hops {
+		next = append(next, promotionSeries{
+			pipeline:    pipeline,
+			from:        hop.From,
+			to:          hop.To,
+			composition: compositionLabel(hop.Composition, aggregateOnly),
+			action:      hop.Action,
+			reason:      hop.Reason,
+		})
+	}
+
+	promotionHopMu.Lock()
+	defer promotionHopMu.Unlock()
+	for _, old := range promotionHopSeries[pipeline] {
+		if !seriesCurrent(next, old) {
+			promotionHops.WithLabelValues(old.pipeline, old.from, old.to, old.composition, old.action, old.reason).Set(0)
+		}
+	}
+	for _, cur := range next {
+		promotionHops.WithLabelValues(cur.pipeline, cur.from, cur.to, cur.composition, cur.action, cur.reason).Set(1)
+	}
+	promotionHopSeries[pipeline] = next
+}
+
+// IncPromotionWrite counts one Start append that succeeded.
+func IncPromotionWrite(pipeline, from, to, composition, action, reason string, aggregateOnly bool) {
+	promotionWrites.WithLabelValues(
+		pipeline,
+		from,
+		to,
+		compositionLabel(composition, aggregateOnly),
+		action,
+		reason,
+	).Inc()
+}
+
+func compositionLabel(composition string, aggregateOnly bool) string {
+	if aggregateOnly {
+		return "_all"
+	}
+	return composition
+}
+
+func seriesCurrent(series []promotionSeries, candidate promotionSeries) bool {
+	for _, item := range series {
+		if item == candidate {
+			return true
+		}
+	}
+	return false
 }
