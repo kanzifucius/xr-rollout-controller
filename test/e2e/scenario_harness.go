@@ -88,6 +88,7 @@ type rolloutSpec struct {
 	defaultPolicy string
 	suspend       bool
 	rolloutName   string
+	dryRun        bool
 }
 
 var activeFleet *seededFleet
@@ -240,7 +241,11 @@ spec:
 		}
 		_, _ = fmt.Fprintf(&b, "    labelSelector:\n      matchLabels:\n        %s: %q\n", canaryLabel, value)
 	}
-	_, _ = fmt.Fprintf(&b, "  autoStart: true\n  onNewRevision: Queue\n")
+	_, _ = fmt.Fprintf(&b, "  autoStart: true\n")
+	if spec.dryRun {
+		b.WriteString("  dryRun: true\n")
+	}
+	b.WriteString("  onNewRevision: Queue\n")
 	if spec.suspend {
 		b.WriteString("  suspend: true\n")
 	}
