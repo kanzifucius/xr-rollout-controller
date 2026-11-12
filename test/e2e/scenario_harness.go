@@ -504,14 +504,15 @@ func scaleCrossplane(replicas int) {
 		return
 	}
 	// A terminating Crossplane pod can still write Ready=True over a status
-	// patch. Wait until the pods are gone before the caller sets conditions.
+	// patch. Wait until those pods are gone. The RBAC manager is a separate
+	// deployment and does not reconcile composite status.
 	Eventually(func(g Gomega) {
 		out, err := run("kubectl", "get", "pods", "-n", crossplaneNamespace, "-o", "name")
 		g.Expect(err).NotTo(HaveOccurred())
 		var left []string
 		for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, "pod/crossplane-") {
+			if strings.HasPrefix(line, "pod/crossplane-") && !strings.HasPrefix(line, "pod/crossplane-rbac-manager-") {
 				left = append(left, line)
 			}
 		}
