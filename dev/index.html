@@ -560,6 +560,8 @@
       
         
       
+        
+      
     
     
     
@@ -676,6 +678,34 @@
     
   
     Environment gate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="promotion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Promotion across clusters
   
 
     
@@ -1083,11 +1113,15 @@ Local <code>mkdocs build</code> and tests.</p>
 <tbody>
 <tr>
 <td><code>latest</code></td>
-<td>Docs for the newest <strong>non-prerelease</strong> SemVer tag (default after the first release)</td>
+<td>Docs for the newest stable SemVer tag (default after the first release). Pre-releases do not move this alias.</td>
 </tr>
 <tr>
 <td><code>1.2.3</code></td>
-<td>Immutable docs for tag <code>v1.2.3</code> (the leading <code>v</code> is removed)</td>
+<td>Immutable docs for stable tag <code>v1.2.3</code> (the leading <code>v</code> is removed)</td>
+</tr>
+<tr>
+<td><code>1.2.3-rc.1</code></td>
+<td>Docs for a pre-release tag such as <code>v1.2.3-rc.1</code>. <code>latest</code> stays on the last stable version.</td>
 </tr>
 <tr>
 <td><code>dev</code></td>

@@ -480,6 +480,8 @@
       
         
       
+        
+      
     
     
     
@@ -596,6 +598,34 @@
     
   
     Environment gate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../promotion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Promotion across clusters
   
 
     
@@ -1041,7 +1071,7 @@
 <li>Architecture diagrams: standalone HTML under <code>docs/architecture/</code> plus caption pages that embed them</li>
 <li>Versioned deploys use <a href="https://github.com/jimporter/mike">mike</a> on the <code>gh-pages</code> branch, which GitHub Pages serves (see <code>.github/workflows/docs.yml</code>)</li>
 </ul>
-<p>Prefer editing Markdown under <code>docs/</code> and <code>mkdocs.yml</code> on a feature branch. CI builds the site on pull requests that touch the docs toolchain, and publishes a version on pushes to <code>main</code> and on <code>v*</code> tags.</p>
+<p>Prefer editing Markdown under <code>docs/</code> and <code>mkdocs.yml</code> on a feature branch. CI builds the site on pull requests that touch the docs toolchain, and publishes a version on pushes to <code>main</code> and on semver tags, including pre-releases. A pre-release publishes its own version and leaves the <code>latest</code> alias on the last stable version.</p>
 <p>Design notes that are not part of the published site:</p>
 <ul>
 <li><a href="https://github.com/kanzifucius/xr-rollout-controller/blob/main/docs/xr-rollout-controller-plan.md"><code>docs/xr-rollout-controller-plan.md</code></a></li>

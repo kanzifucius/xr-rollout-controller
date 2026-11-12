@@ -562,6 +562,8 @@
       
         
       
+        
+      
     
     
     
@@ -678,6 +680,34 @@
     
   
     Environment gate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../promotion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Promotion across clusters
   
 
     
@@ -1025,7 +1055,7 @@
 
 <h1 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h1>
 <p>Releases publish a multi-arch controller image and a Helm chart to GHCR. Both packages are public: pull and install them without a registry login or an image pull secret.</p>
-<p>Chart <code>--version</code> is SemVer <strong>without</strong> a leading <code>v</code>. Image tags <strong>keep</strong> <code>v</code>.</p>
+<p>Chart <code>--version</code> is SemVer <strong>without</strong> a leading <code>v</code>. Image tags <strong>keep</strong> <code>v</code>. A pre-release chart keeps the suffix, for example <code>1.2.3-rc.1</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>helm<span class="w"> </span>install<span class="w"> </span>xr-rollout-controller<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>oci://ghcr.io/kanzifucius/charts/xr-rollout-controller<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--version<span class="w"> </span><span class="m">1</span>.2.3<span class="w"> </span><span class="se">\</span>
@@ -1046,7 +1076,11 @@
 <tbody>
 <tr>
 <td><code>vX.Y.Z</code></td>
-<td>A semver tag <code>vX.Y.Z</code> is pushed</td>
+<td>A stable semver tag is pushed, including optional <code>+build</code> metadata. The image is that tag only.</td>
+</tr>
+<tr>
+<td><code>vX.Y.Z-&lt;pre&gt;</code></td>
+<td>A pre-release tag such as <code>v1.2.3-rc.1</code> or <code>v1.2.3-alpha.1</code> is pushed. The image is that tag only. <code>latest</code> is left unchanged.</td>
 </tr>
 <tr>
 <td><code>&lt;short-sha&gt;</code></td>

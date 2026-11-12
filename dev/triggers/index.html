@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://kanzifucius.github.io/xr-rollout-controller/latest/triggers/">
       
       
-        <link rel="prev" href="../environment/">
+        <link rel="prev" href="../promotion/">
       
       
         <link rel="next" href="../architecture/">
@@ -484,6 +484,8 @@
       
         
       
+        
+      
     
     
     
@@ -603,6 +605,34 @@
     
   
     Environment gate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../promotion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Promotion across clusters
   
 
     
@@ -986,7 +1016,7 @@
 
 <h1 id="triggers">Triggers<a class="headerlink" href="#triggers" title="Permanent link">&para;</a></h1>
 <p><code>spec.triggers</code> is the manual control surface. The controller never deletes or edits spec (GitOps would fight that). It records consumption on <code>status.rollouts[].acknowledgedTriggers</code>. A trigger already acknowledged for the same composition, action, and revision is a no-op.</p>
-<p>Each entry names the composition, the action, an optional revision, and an optional <code>actor</code> string for audit.</p>
+<p>Each entry names the composition, the action, an optional revision, and an optional <code>actor</code> string for audit. An omitted <code>Start</code> revision is stored as an empty string. That empty string is the map key for latest.</p>
 <table>
 <thead>
 <tr>
@@ -1018,6 +1048,7 @@
 </tr>
 </tbody>
 </table>
+<p>A promoter may append <code>Start</code> for one revision. The controller still only acknowledges that entry. A <code>Stale</code> acknowledgement is not retried for that revision.</p>
 <p>A trigger that does not match the phase or revision is acknowledged with outcome <code>Stale</code> and does not change the phase. <code>autoStart</code> will not immediately start a rollout for a revision that was aborted. A later <code>Start</code> can run that revision again from <code>Canarying</code>.</p>
 <p>Abort does not revert XRs. Canaries already on the new revision stay there. The rest stay on the old one until a later rollout moves them.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">spec</span><span class="p">:</span>

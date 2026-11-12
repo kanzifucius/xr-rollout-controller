@@ -18,7 +18,7 @@
         <link rel="prev" href="../canary/">
       
       
-        <link rel="next" href="../triggers/">
+        <link rel="next" href="../promotion/">
       
       
         
@@ -484,6 +484,8 @@
       
         
       
+        
+      
     
     
     
@@ -621,6 +623,34 @@
 
       </a>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../promotion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Promotion across clusters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -950,6 +980,7 @@
 <p>A cluster installed with <code>--set environment=prod</code> waits. A cluster installed with <code>--set environment=dev</code> promotes on its own. The manifest does not change.</p>
 <p><code>AwaitingApproval</code> is also a status condition on the <code>CompositionRollout</code>, so a release process can watch one object instead of the whole fleet.</p>
 <p>The approval itself is a <code>spec.triggers</code> entry, not an annotation. See <a href="../triggers/">Triggers</a>.</p>
+<p>Cross-cluster order is a different mechanism from <code>spec.promotion.environments</code>. The environment map still decides <code>AutoPromote</code> or <code>ManualApproval</code> inside the cluster after soak. See <a href="../promotion/">Promotion across clusters</a>.</p>
 
 
 

@@ -482,6 +482,8 @@
       
         
       
+        
+      
     
     
     
@@ -598,6 +600,34 @@
     
   
     Environment gate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../promotion/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Promotion across clusters
   
 
     
@@ -1007,9 +1037,14 @@
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v1.2.3<span class="w"> </span>-m<span class="w"> </span><span class="s2">"v1.2.3"</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3
 </code></pre></div>
-<p>The tag must match <code>vMAJOR.MINOR.PATCH</code>, with an optional prerelease or build suffix (<code>v1.2.3-rc.1</code>).</p>
+<p>A pre-release uses the same flow:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v1.2.3-rc.1<span class="w"> </span>-m<span class="w"> </span><span class="s2">"v1.2.3-rc.1"</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v1.2.3-rc.1
+</code></pre></div>
+<p>The tag must match <code>vMAJOR.MINOR.PATCH</code>, with an optional pre-release suffix and optional build metadata (<code>v1.2.3-rc.1</code>, <code>v1.2.3-alpha.1</code>, <code>v1.2.3-rc.1+exp.1</code>). Build metadata on its own (<code>v1.2.3+sha</code>) is still a stable release. A hyphen only inside the build metadata does not make a pre-release.</p>
+<p>Image registries reject <code>+</code> in a tag. Publish a pre-release you want to pull without build metadata (<code>v1.2.3-rc.1</code>). When the git tag includes <code>+build</code>, the chart version and the docs version keep that suffix.</p>
 <h2 id="what-the-tag-publishes">What the tag publishes<a class="headerlink" href="#what-the-tag-publishes" title="Permanent link">&para;</a></h2>
-<p>Two workflows run on that push. <a href="https://github.com/kanzifucius/xr-rollout-controller/blob/main/.github/workflows/release.yml">Release</a> publishes the artefacts. <a href="https://github.com/kanzifucius/xr-rollout-controller/blob/main/.github/workflows/docs.yml">docs</a> publishes the site. They do not call each other.</p>
+<p>Two workflows run on that push. <a href="https://github.com/kanzifucius/xr-rollout-controller/blob/main/.github/workflows/release.yml">Release</a> publishes the artefacts. <a href="https://github.com/kanzifucius/xr-rollout-controller/blob/main/.github/workflows/docs.yml">docs</a> publishes the site. They do not call each other. Both ask <code>hack/release-tag.sh</code> whether the tag is stable or a pre-release.</p>
 <table>
 <thead>
 <tr>
@@ -1022,22 +1057,22 @@
 <tr>
 <td>Controller image</td>
 <td><code>ghcr.io/kanzifucius/xr-rollout-controller</code></td>
-<td><code>v1.2.3</code> (the git tag)</td>
+<td>the git tag. The <code>latest</code> image tag is published from <code>main</code> only.</td>
 </tr>
 <tr>
 <td>Helm chart</td>
 <td><code>oci://ghcr.io/kanzifucius/charts/xr-rollout-controller</code></td>
-<td><code>1.2.3</code> (tag without <code>v</code>), <code>appVersion</code> <code>v1.2.3</code></td>
+<td>tag without <code>v</code> (<code>1.2.3</code> or <code>1.2.3-rc.1</code>). <code>appVersion</code> is the git tag. A pre-release stays on that version. It is not copied onto a stable version or <code>latest</code>.</td>
 </tr>
 <tr>
 <td>GitHub Release</td>
 <td>this repository</td>
-<td><code>install.yaml</code> and <code>compositionrollouts.crd.yaml</code></td>
+<td><code>install.yaml</code> and <code>compositionrollouts.crd.yaml</code>, with generated notes. A pre-release is created with <code>--prerelease</code> and <code>--latest=false</code>.</td>
 </tr>
 <tr>
 <td>Docs version</td>
 <td>GitHub Pages (mike tree on <code>gh-pages</code>)</td>
-<td><code>1.2.3</code>, and alias <code>latest</code> when the tag has no <code>-</code></td>
+<td>tag without <code>v</code>. Stable tags also move the <code>latest</code> alias. Pre-releases leave <code>latest</code> on the last stable version.</td>
 </tr>
 </tbody>
 </table>
@@ -1064,13 +1099,23 @@
 <td><code>latest</code> is updated, and <code>latest</code> becomes the default</td>
 </tr>
 <tr>
+<td>tag <code>v1.2.3+sha</code></td>
+<td><code>1.2.3+sha</code></td>
+<td><code>latest</code> is updated (build metadata is not a pre-release)</td>
+</tr>
+<tr>
 <td>tag <code>v1.3.0-rc.1</code></td>
 <td><code>1.3.0-rc.1</code></td>
-<td><code>latest</code> is left where it is</td>
+<td><code>latest</code> stays on the last stable version</td>
+</tr>
+<tr>
+<td>tag <code>v1.3.0-alpha.1</code></td>
+<td><code>1.3.0-alpha.1</code></td>
+<td><code>latest</code> stays on the last stable version</td>
 </tr>
 </tbody>
 </table>
-<p>After <code>v1.2.3</code> is pushed, the version dropdown lists <code>1.2.3</code> and <code>latest</code> points at those pages. The next non-prerelease tag moves <code>latest</code>. Older versions stay addressable, for example <code>/1.2.3/</code> beside <code>/latest/</code> and <code>/dev/</code>.</p>
+<p>After <code>v1.2.3</code> is pushed, the version dropdown lists <code>1.2.3</code> and <code>latest</code> points at those pages. The next stable tag moves <code>latest</code>. A later pre-release publishes its own version beside that alias. Older versions stay addressable, for example <code>/1.2.3/</code> beside <code>/latest/</code>, <code>/1.3.0-rc.1/</code>, and <code>/dev/</code>.</p>
 <p>The first successful docs deploy on <code>main</code> creates <code>gh-pages</code>. Pages must be set once to <strong>Deploy from a branch</strong>, branch <code>gh-pages</code>, folder <code>/</code> (root). The workflow does not use the <code>github-pages</code> environment: that environment only allows deployments from <code>gh-pages</code>, and this job runs on <code>main</code>.</p>
 
 
