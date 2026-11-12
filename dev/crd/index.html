@@ -486,6 +486,8 @@
       
         
       
+        
+      
     
     
     
@@ -780,6 +782,34 @@
     
   
     Triggers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dry-run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dry run
   
 
     
@@ -1157,6 +1187,10 @@
 <td>Pauses every in-flight rollout and ignores new revisions until cleared.</td>
 </tr>
 <tr>
+<td><code>dryRun</code></td>
+<td>When <code>true</code>, simulate the rollout and do not write XRs. Default <code>false</code>. See <a href="../dry-run/">Dry run</a>.</td>
+</tr>
+<tr>
 <td><code>autoStart</code></td>
 <td>Start a rollout when a newer revision appears. Default <code>true</code>.</td>
 </tr>
@@ -1313,6 +1347,10 @@
 <tr>
 <td><code>acknowledgedTriggers</code></td>
 <td>Triggers already consumed, so each entry acts once</td>
+</tr>
+<tr>
+<td><code>dryRun</code></td>
+<td>Simulation report: <code>active</code>, <code>promotion</code>, <code>wouldUpdate</code>, <code>completedAt</code>. Empty on a real rollout.</td>
 </tr>
 </tbody>
 </table>

@@ -486,6 +486,8 @@
       
         
       
+        
+      
     
     
     
@@ -671,6 +673,34 @@
     
   
     Triggers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dry-run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dry run
   
 
     
@@ -990,6 +1020,7 @@
 <p>The field manager is <code>xr-rollout-promoter</code>. <code>Paused</code> or <code>Aborted</code> on the lower cluster leaves the next cluster unstarted. Abort does not roll XRs back.</p>
 <p>The spoke <code>--environment</code> value is still the in-cluster policy key (<code>acceptance</code> in the samples). It is not required to equal the cluster name <code>acc</code>.</p>
 <p>Apply spoke <code>CompositionRollout</code> objects with server-side apply, so GitOps does not own the promoter's trigger key. <code>spec.triggers</code> is a map keyed by composition, action, and revision. The controller acknowledges a trigger in status. It does not delete it.</p>
+<p>A spoke <code>CompositionRollout</code> with <code>spec.dryRun: true</code> does not receive <code>Start</code>. A predecessor that is a dry run does not open the next cluster. The hop reason is <code>DryRun</code>.</p>
 <p>On each spoke, bind the kubeconfig identity to the ClusterRole in <code>config/rbac/promoter_remote_role.yaml</code> (also packaged at <code>charts/xr-rollout-controller/files/promoter-remote-rbac.yaml</code>). Do not reuse the XR aggregation role. That remote role can read rollout status and patch <code>spec.triggers</code>. It cannot write status, and it cannot touch XRs.</p>
 <p>The management process reaches each cluster with the <a href="https://github.com/kubernetes/community/blob/main/sig-multicluster/README.md">multicluster-runtime</a> client library. Nothing else from that SIG has to be installed on the spokes.</p>
 

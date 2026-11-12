@@ -486,6 +486,8 @@
       
         
       
+        
+      
     
     
     
@@ -763,6 +765,34 @@
     
   
     Triggers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dry-run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dry run
   
 
     
@@ -1149,6 +1179,7 @@
 </code></pre></div>
 <p>A manifest that sets both the fleet selector and this canary selector is in <a href="../crd/#fleet-and-canary-together">Fleet and canary together</a>.</p>
 <p>Canaries are patched with server-side apply, field manager <code>xr-rollout-controller</code>, changing only <code>spec.crossplane.compositionRevisionRef.name</code>. Crossplane's own field manager on that field is taken so a Manual rollout can proceed. A conflict with any other manager pauses with <code>PatchFailed</code> unless the Deployment sets <code>--force-ownership</code>.</p>
+<p>A dry run records those patches in <code>status.rollouts[].dryRun.wouldUpdate</code> and does not apply them. See <a href="../dry-run/">Dry run</a>.</p>
 <h2 id="soak">Soak<a class="headerlink" href="#soak" title="Permanent link">&para;</a></h2>
 <p><code>spec.soak.duration</code> (default <code>30m</code>) is how long every canary must hold <code>Ready=True</code> and <code>Synced=True</code>. Health means the conditions are currently <code>True</code> and their <code>lastTransitionTime</code> is at or before the soak start, so a flip to <code>False</code> during the window fails that XR even if it recovers.</p>
 <p><code>maxUnhealthy</code> (default <code>0</code>) is how many unhealthy canaries are tolerated. <code>stabilisationTimeout</code> (default <code>30m</code>) bounds how long the controller waits for canaries to become healthy the first time. Exceeding either pauses the rollout. Already-updated XRs stay on the new revision.</p>

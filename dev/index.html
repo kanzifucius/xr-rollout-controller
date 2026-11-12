@@ -562,6 +562,8 @@
       
         
       
+        
+      
     
     
     
@@ -734,6 +736,34 @@
     
   
     Triggers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="dry-run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dry run
   
 
     
@@ -1054,6 +1084,7 @@
 <h1 id="xr-rollout-controller">XR Rollout Controller<a class="headerlink" href="#xr-rollout-controller" title="Permanent link">&para;</a></h1>
 <p>The controller rolls a fleet of Crossplane <strong>v2</strong> composite resources (XRs) onto a new <strong>CompositionRevision</strong> in a fixed order: canary, soak, environment gate, then batched waves.</p>
 <p>It governs XRs whose <code>compositionUpdatePolicy</code> is <strong>Manual</strong>. The only field it writes is <code>spec.crossplane.compositionRevisionRef</code>. Automatic XRs keep moving on their own and are counted as unmanaged.</p>
+<p>Set <code>spec.dryRun: true</code> to simulate that rollout without writing the field. See <a href="dry-run/">Dry run</a>.</p>
 <h2 id="what-it-does">What it does<a class="headerlink" href="#what-it-does" title="Permanent link">&para;</a></h2>
 <ol>
 <li><strong>Watch</strong> a cluster-scoped <code>CompositionRollout</code> and new <code>CompositionRevision</code> objects for the compositions it names.</li>
