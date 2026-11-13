@@ -14,7 +14,7 @@ The kubeconfig user on the spoke can patch the XR types you aggregate. The proce
 
 ## Management cluster
 
-Set `mode: hub`. Secrets are the same shape as [remote](remote.md): name `acc`, annotation `acceptance`.
+Set `mode: hub`. One Secret per cluster, in the release namespace, with the same label and annotation as [remote](remote.md). The [install](../install.md) example uses `xr-rollout-controller-system`. The Secret name is the cluster name. The annotation `rollouts.platform.example.org/environment` is the promotion key, so `acc` can be `acceptance`. Local mode does not use this Secret. Remote and hub both do. The chart does not create it.
 
 The ServiceAccount can update `CompositionRollout` and `PromotionPipeline`, including status. The chart does not bind the XR aggregate role here. The XRs are on the spokes.
 
@@ -42,19 +42,66 @@ promoter:
     - acc
 ```
 
+Apply this ExternalSecret, or apply the Secret it writes. `vault` is an example SecretStore. The template sets the label and the annotation on the Secret.
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: acc
+  namespace: xr-rollout-controller-system
+spec:
+  secretStoreRef:
+    name: vault
+    kind: SecretStore
+  target:
+    name: acc
+    template:
+      metadata:
+        labels:
+          sigs.k8s.io/multicluster-runtime-kubeconfig: "true"
+        annotations:
+          rollouts.platform.example.org/environment: acceptance
+  data:
+    - secretKey: kubeconfig
+      remoteRef:
+        key: clusters/acc
+        property: kubeconfig
+```
+
+The user in the kubeconfig is `xr-rollout-hub`, the User bound to the spoke XR role. The client certificate and key are that user's credentials.
+
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
   name: acc
-  namespace: xr-rollout
+  namespace: xr-rollout-controller-system
   labels:
     sigs.k8s.io/multicluster-runtime-kubeconfig: "true"
   annotations:
     rollouts.platform.example.org/environment: acceptance
 type: Opaque
-data:
-  kubeconfig: <base64 kubeconfig>
+stringData:
+  kubeconfig: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+      - name: acc
+        cluster:
+          server: https://acc.example.org:6443
+          certificate-authority-data: <certificate-authority-data>
+    contexts:
+      - name: acc
+        context:
+          cluster: acc
+          user: xr-rollout-hub
+    current-context: acc
+    users:
+      - name: xr-rollout-hub
+        user:
+          client-certificate-data: <client-certificate-data>
+          client-key-data: <client-key-data>
 ```
 
 ```yaml
