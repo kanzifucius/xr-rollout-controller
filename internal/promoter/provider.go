@@ -42,6 +42,9 @@ const (
 	KubeconfigSecretLabel = "sigs.k8s.io/multicluster-runtime-kubeconfig"
 	// KubeconfigSecretKey is the data key that holds the kubeconfig bytes.
 	KubeconfigSecretKey = "kubeconfig"
+	// EnvironmentAnnotation is the per-cluster promotion environment.
+	// It is not the Secret name. Cluster acc may be annotated acceptance.
+	EnvironmentAnnotation = "rollouts.platform.example.org/environment"
 
 	cacheSyncTimeout = 30 * time.Second
 )
@@ -66,9 +69,10 @@ type KubeconfigProvider struct {
 }
 
 type engagedCluster struct {
-	cluster cluster.Cluster
-	cancel  context.CancelFunc
-	hash    string
+	cluster     cluster.Cluster
+	cancel      context.CancelFunc
+	hash        string
+	environment string
 }
 
 type fieldIndex struct {
@@ -100,6 +104,28 @@ func (p *KubeconfigProvider) Get(_ context.Context, clusterName string) (cluster
 		return nil, multicluster.ErrClusterNotFound
 	}
 	return engaged.cluster, nil
+}
+
+// Environment returns the promotion environment annotated on the kubeconfig Secret.
+// A missing cluster or an empty annotation is ("", false).
+func (p *KubeconfigProvider) Environment(clusterName string) (string, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	engaged, ok := p.clusters[clusterName]
+	if !ok || engaged.environment == "" {
+		return "", false
+	}
+	return engaged.environment, true
+}
+
+func (p *KubeconfigProvider) setEnvironment(name, environment string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	engaged, ok := p.clusters[name]
+	if !ok {
+		return
+	}
+	engaged.environment = environment
 }
 
 // IndexField records an indexer and applies it to clusters already engaged.
@@ -159,9 +185,11 @@ func (p *KubeconfigProvider) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
+	env := secretEnvironment(secret)
 	raw := secret.Data[p.opts.KubeconfigSecretKey]
 	hash := hashKubeconfig(raw)
 	if p.sameHash(name, hash) {
+		p.setEnvironment(name, env)
 		return ctrl.Result{}, nil
 	}
 
@@ -206,11 +234,11 @@ func (p *KubeconfigProvider) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, fmt.Errorf("engage cluster %s: %w", name, err)
 	}
 
-	previous := p.store(name, &engagedCluster{cluster: cl, cancel: cancel, hash: hash})
+	previous := p.store(name, &engagedCluster{cluster: cl, cancel: cancel, hash: hash, environment: env})
 	if previous != nil {
 		previous.cancel()
 	}
-	logger.Info("engaged cluster", "cluster", name, "secret", secret.Namespace+"/"+secret.Name)
+	logger.Info("engaged cluster", "cluster", name, "environment", env, "secret", secret.Namespace+"/"+secret.Name)
 	return ctrl.Result{}, nil
 }
 
@@ -250,6 +278,13 @@ func (p *KubeconfigProvider) disengage(name string) bool {
 	engaged.cancel()
 	delete(p.clusters, name)
 	return true
+}
+
+func secretEnvironment(secret *corev1.Secret) string {
+	if secret.Annotations == nil {
+		return ""
+	}
+	return secret.Annotations[EnvironmentAnnotation]
 }
 
 func secretClusterName(opts KubeconfigOptions, secret *corev1.Secret) (string, bool) {

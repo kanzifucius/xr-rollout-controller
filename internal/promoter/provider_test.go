@@ -76,3 +76,36 @@ current-context: dev
 		t.Fatal("bad kubeconfig returned nil error")
 	}
 }
+
+func TestEnvironmentAnnotation(t *testing.T) {
+	t.Parallel()
+	if EnvironmentAnnotation != "rollouts.platform.example.org/environment" {
+		t.Fatalf("annotation = %s", EnvironmentAnnotation)
+	}
+	p := NewKubeconfigProvider(KubeconfigOptions{Namespace: "xr-rollout"})
+	if _, ok := p.Environment("acc"); ok {
+		t.Fatal("missing cluster reported an environment")
+	}
+	p.store("acc", &engagedCluster{environment: "acceptance"})
+	got, ok := p.Environment("acc")
+	if !ok || got != "acceptance" {
+		t.Fatalf("Environment = %q, %v", got, ok)
+	}
+	p.setEnvironment("acc", "")
+	if _, ok := p.Environment("acc"); ok {
+		t.Fatal("empty annotation reported an environment")
+	}
+}
+
+func TestSecretEnvironmentAnnotation(t *testing.T) {
+	t.Parallel()
+	secret := &corev1.Secret{}
+	secret.Annotations = map[string]string{EnvironmentAnnotation: "acceptance"}
+	if got := secretEnvironment(secret); got != "acceptance" {
+		t.Fatalf("secretEnvironment = %q", got)
+	}
+	secret.Annotations = nil
+	if got := secretEnvironment(secret); got != "" {
+		t.Fatalf("missing annotation = %q", got)
+	}
+}
