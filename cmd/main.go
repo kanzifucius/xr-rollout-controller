@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -97,6 +98,9 @@ func main() {
 	flag.BoolVar(&forceOwnership, "force-ownership", false, "Force field ownership on server-side apply patches to XRs.")
 	flag.BoolVar(&metricsAggregateOnly, "metrics-aggregate-only", false, "Drop per-composition metric labels.")
 	flag.BoolVar(&enableRollout, "enable-rollout", true, "Run the per-cluster CompositionRollout controller.")
+	var remoteReconcile bool
+	flag.BoolVar(&remoteReconcile, "remote-reconcile", false,
+		"Reconcile CompositionRollout on each engaged cluster. Default false; the local controller is unchanged.")
 	flag.BoolVar(&promoterEnabled, "promoter", false,
 		"Append Start on the next cluster after the previous one completes a revision.")
 	flag.StringVar(&promoterSecretNamespace, "promoter-secret-namespace", "",
@@ -223,13 +227,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	if enableRollout {
+	switch controller.PlacementFor(enableRollout, remoteReconcile) {
+	case controller.PlacementLocal:
 		dyn, err := dynamic.NewForConfig(restConfig)
 		if err != nil {
 			setupLog.Error(err, "unable to create dynamic client")
 			os.Exit(1)
 		}
-
 		if err = (&controller.CompositionRolloutReconciler{
 			Client:               mgr.GetClient(),
 			Scheme:               mgr.GetScheme(),
@@ -242,8 +246,19 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "CompositionRollout")
 			os.Exit(1)
 		}
+	case controller.PlacementRemote:
+		setupLog.Info("remote reconcile is on; not starting the local CompositionRollout controller")
+	case controller.PlacementNone:
+	default:
+		setupLog.Error(fmt.Errorf("unknown rollout placement"), "refusing to start")
+		os.Exit(1)
 	}
-	if promoterEnabled {
+
+	if promoterEnabled || remoteReconcile {
+		if promoterSecretNamespace == "" {
+			setupLog.Error(fmt.Errorf("empty namespace"), "kubeconfig Secret namespace is required")
+			os.Exit(1)
+		}
 		provider := promoter.NewKubeconfigProvider(promoter.KubeconfigOptions{
 			Namespace: promoterSecretNamespace,
 			ClusterOptions: []cluster.Option{
@@ -261,14 +276,31 @@ func main() {
 			setupLog.Error(err, "unable to start kubeconfig provider")
 			os.Exit(1)
 		}
-		if err := (&promoter.PromoterReconciler{
-			Local:                mgr.GetClient(),
-			Provider:             provider,
-			Writer:               promoter.NewSSAWriter(),
-			MetricsAggregateOnly: metricsAggregateOnly,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "PromotionPipeline")
-			os.Exit(1)
+		if remoteReconcile {
+			remote := &controller.RemoteReconciler{
+				Inner: &controller.CompositionRolloutReconciler{
+					Scheme:               scheme,
+					ForceOwnership:       forceOwnership,
+					MetricsAggregateOnly: metricsAggregateOnly,
+					FieldManager:         "xr-rollout-controller",
+				},
+				Clusters: provider,
+			}
+			if err := remote.SetupWithManager(mcMgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "CompositionRolloutRemote")
+				os.Exit(1)
+			}
+		}
+		if promoterEnabled {
+			if err := (&promoter.PromoterReconciler{
+				Local:                mgr.GetClient(),
+				Provider:             provider,
+				Writer:               promoter.NewSSAWriter(),
+				MetricsAggregateOnly: metricsAggregateOnly,
+			}).SetupWithManager(mgr); err != nil {
+				setupLog.Error(err, "unable to create controller", "controller", "PromotionPipeline")
+				os.Exit(1)
+			}
 		}
 	}
 	// +kubebuilder:scaffold:builder
