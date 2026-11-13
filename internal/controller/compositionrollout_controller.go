@@ -50,6 +50,7 @@ type CompositionRolloutReconciler struct {
 
 	mgr        ctrl.Manager
 	controller controller.Controller
+	remote     *RemoteReconciler
 	xrWatchMu  sync.Mutex
 	xrWatches  sync.Map
 }

@@ -18,13 +18,14 @@ package controller
 
 import (
 	"context"
-	"fmt"
+	"sync"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -61,15 +62,19 @@ func (r *CompositionRolloutReconciler) setupStaticWatches(bld *builder.Builder) 
 	return bld.
 		Watches(rev, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 			return r.mapCompositionRevision(ctx, localClients(r), obj)
-		}), builder.WithPredicates(predicate.Funcs{
-			CreateFunc:  func(e event.CreateEvent) bool { return true },
-			UpdateFunc:  func(e event.UpdateEvent) bool { return false },
-			DeleteFunc:  func(e event.DeleteEvent) bool { return false },
-			GenericFunc: func(e event.GenericEvent) bool { return false },
-		})).
+		}), builder.WithPredicates(createOnlyPredicate())).
 		Watches(comp, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 			return r.mapComposition(ctx, localClients(r), obj)
 		}))
+}
+
+func createOnlyPredicate() predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc:  func(event.CreateEvent) bool { return true },
+		UpdateFunc:  func(event.UpdateEvent) bool { return false },
+		DeleteFunc:  func(event.DeleteEvent) bool { return false },
+		GenericFunc: func(event.GenericEvent) bool { return false },
+	}
 }
 
 func (r *CompositionRolloutReconciler) mapCompositionRevision(ctx context.Context, cc clusterClients, obj client.Object) []reconcile.Request {
@@ -125,16 +130,16 @@ type xrWatchKey struct {
 
 func (r *CompositionRolloutReconciler) ensureXRWatch(cc clusterClients, gvk schema.GroupVersionKind) error {
 	key := xrWatchKey{cluster: cc.cluster, gvk: gvk}
-	if _, loaded := r.xrWatches.Load(key); loaded {
+	if xrWatchCurrent(&r.xrWatches, key, cc) {
 		return nil
 	}
 	r.xrWatchMu.Lock()
 	defer r.xrWatchMu.Unlock()
-	if _, loaded := r.xrWatches.Load(key); loaded {
+	if xrWatchCurrent(&r.xrWatches, key, cc) {
 		return nil
 	}
 	if cc.cluster != "" {
-		return fmt.Errorf("cluster %s: XR watch has no cluster", cc.cluster)
+		return r.watchRemoteXRs(cc, key, gvk)
 	}
 	if cc.controller == nil {
 		return nil
@@ -155,6 +160,18 @@ func (r *CompositionRolloutReconciler) ensureXRWatch(cc clusterClients, gvk sche
 	}
 	r.xrWatches.Store(key, struct{}{})
 	return nil
+}
+
+func xrWatchCurrent(watches *sync.Map, key xrWatchKey, cc clusterClients) bool {
+	prev, loaded := watches.Load(key)
+	if !loaded {
+		return false
+	}
+	if cc.cluster == "" {
+		return true
+	}
+	prevCluster, ok := prev.(cluster.Cluster)
+	return ok && prevCluster == cc.clusterObj
 }
 
 var _ controller.Controller

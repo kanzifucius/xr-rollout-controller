@@ -31,18 +31,20 @@ const FieldIndexCompositionName = "spec.compositions"
 
 func setupIndexes(mgr ctrl.Manager) error {
 	ctx := context.Background()
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &rolloutsv1alpha1.CompositionRollout{}, FieldIndexCompositionName, func(raw client.Object) []string {
-		cr, ok := raw.(*rolloutsv1alpha1.CompositionRollout)
-		if !ok {
-			return nil
-		}
-		names := make([]string, 0, len(cr.Spec.Compositions))
-		for i := range cr.Spec.Compositions {
-			names = append(names, cr.Spec.Compositions[i].Name)
-		}
-		return names
-	}); err != nil {
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &rolloutsv1alpha1.CompositionRollout{}, FieldIndexCompositionName, compositionNameIndex); err != nil {
 		return fmt.Errorf("index CompositionRollout: %w", err)
 	}
 	return nil
+}
+
+func compositionNameIndex(raw client.Object) []string {
+	cr, ok := raw.(*rolloutsv1alpha1.CompositionRollout)
+	if !ok {
+		return nil
+	}
+	names := make([]string, 0, len(cr.Spec.Compositions))
+	for i := range cr.Spec.Compositions {
+		names = append(names, cr.Spec.Compositions[i].Name)
+	}
+	return names
 }
