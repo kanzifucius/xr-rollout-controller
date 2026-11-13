@@ -58,8 +58,8 @@ Switch on `RolloutPhase`, `TriggerAction`, `PromotionPolicy`, and `CanaryStrateg
 - `spec.suspend` pauses every composition and ignores triggers until it is cleared.
 - Two `CompositionRollout` objects must not claim the same composition. Admission rejects it; the reconciler still pauses on overlap.
 - Metrics must not use per-XR labels. `--metrics-aggregate-only` drops the composition label.
-- The promoter only appends a revision-bound `Start` on the next cluster after the previous cluster has completed that revision. It does not patch XRs, `compositionUpdatePolicy`, or `autoStart`. `Paused` and `Aborted` do not promote.
-- `spec.dryRun: true` simulates that `CompositionRollout`. It does not write `compositionRevisionRef` or `compositionUpdatePolicy`. It does not set `completedAt` or phase `Completed`. The promoter must not append `Start` because either cluster is a dry run.
+- The promoter only appends a revision-bound `Start` on the next cluster after the previous cluster has completed that revision. It does not patch XRs, `compositionUpdatePolicy`, or `autoStart`. `Paused` and `Aborted` do not promote. Unset `PromotionPipeline` hop fields keep that gate. Opt-in approval, revision match, inter-cluster soak, or a completed-fleet percentage can hold the write. A `Skip` trigger can treat one cluster as satisfied for a named revision. `Skip` does not append `Start` when that cluster's rollout is a dry run.
+- `spec.dryRun: true` simulates that `CompositionRollout`. It does not write `compositionRevisionRef` or `compositionUpdatePolicy`. It does not set `completedAt` or phase `Completed`. The promoter must not append `Start` because either cluster is a dry run. `spec.dryRunChain: true` records that `Start` on the pipeline and still does not append it.
 
 ## Helm and release
 

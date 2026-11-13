@@ -90,6 +90,7 @@ func (r *PromoterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	notes := []writeNote{}
 	ctx = context.WithValue(ctx, writeNoteKey{}, &notes)
+	ctx, sooner := withRequeue(ctx)
 	read := func(clusterName, rolloutName, composition, wantRevision string) (ClusterView, error) {
 		return r.readView(ctx, clusterName, rolloutName, composition, wantRevision)
 	}
@@ -103,7 +104,14 @@ func (r *PromoterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	return ctrl.Result{RequeueAfter: requeueInterval}, nil
+	return ctrl.Result{RequeueAfter: requeueAfter(sooner)}, nil
+}
+
+func requeueAfter(sooner *time.Duration) time.Duration {
+	if sooner != nil && *sooner > 0 && *sooner < requeueInterval {
+		return *sooner
+	}
+	return requeueInterval
 }
 
 // SetupWithManager registers the promoter on the local manager.
@@ -182,8 +190,8 @@ func reconcilePipeline(
 		for _, composition := range compositions[rolloutName] {
 			for i := 0; i < len(pipeline.Spec.Clusters)-1; i++ {
 				fromName := pipeline.Spec.Clusters[i].Name
-				toName := pipeline.Spec.Clusters[i+1].Name
-				hop, hopErr := reconcileHop(ctx, fromName, toName, rolloutName, composition, read, writer, clFor, &writeErr)
+				toCluster := pipeline.Spec.Clusters[i+1]
+				hop, hopErr := reconcileHop(ctx, pipeline, fromName, toCluster, rolloutName, composition, read, writer, clFor, &writeErr)
 				if hopErr != nil {
 					return hops, hopErr
 				}
@@ -196,7 +204,10 @@ func reconcilePipeline(
 
 func reconcileHop(
 	ctx context.Context,
-	fromName, toName, rolloutName, composition string,
+	pipeline *rolloutsv1alpha1.PromotionPipeline,
+	fromName string,
+	toCluster rolloutsv1alpha1.PromotionCluster,
+	rolloutName, composition string,
 	read func(clusterName, rolloutName, composition, wantRevision string) (ClusterView, error),
 	writer TriggerWriter,
 	clFor func(clusterName string) (client.Client, error),
@@ -206,27 +217,37 @@ func reconcileHop(
 	if err != nil {
 		return rolloutsv1alpha1.PromotionHopStatus{}, err
 	}
-	want := ""
-	if rev, ok := completedRevision(from); ok {
-		want = rev
-	}
-	to, err := read(toName, rolloutName, composition, want)
+	policy, err := buildHopPolicy(ctx, pipeline, fromName, toCluster, rolloutName, composition, from, read, clFor)
 	if err != nil {
 		return rolloutsv1alpha1.PromotionHopStatus{}, err
 	}
-	decision := DecideHop(from, to, composition)
+	to, err := read(toCluster.Name, rolloutName, composition, policyRevision(from, policy))
+	if err != nil {
+		return rolloutsv1alpha1.PromotionHopStatus{}, err
+	}
+	decision := DecideHopPolicy(from, to, composition, policy)
+	wrote := false
 	if decision.Action == ActionWriteStart && *writeErr == nil {
-		if err := appendStart(ctx, clFor, writer, toName, rolloutName, fromName, decision); err != nil {
+		if err := appendStart(ctx, clFor, writer, toCluster.Name, rolloutName, fromName, decision); err != nil {
 			*writeErr = err
 			decision.Action = ActionWait
 			decision.Reason = ReasonStartWriteFailed
 			decision.Message = err.Error()
 		} else {
+			wrote = true
 			decision.Action = ActionRecorded
 			decision.Reason = ReasonAlreadyWritten
 		}
 	}
-	return rolloutsv1alpha1.PromotionHopStatus{
+	if wrote || decision.Reason == ReasonDryRunRecorded {
+		acknowledgeUsed(pipeline, fromName, toCluster.Name, rolloutName, composition, decision.Revision, decision, nowFrom(ctx))
+	}
+	noteRequeue(ctx, decision.RequeueAfter)
+	return hopStatus(fromName, toCluster.Name, rolloutName, composition, decision), nil
+}
+
+func hopStatus(fromName, toName, rolloutName, composition string, decision Decision) rolloutsv1alpha1.PromotionHopStatus {
+	hop := rolloutsv1alpha1.PromotionHopStatus{
 		Rollout:     rolloutName,
 		Composition: composition,
 		Revision:    decision.Revision,
@@ -235,7 +256,99 @@ func reconcileHop(
 		Action:      decision.Action,
 		Reason:      decision.Reason,
 		Message:     decision.Message,
-	}, nil
+	}
+	if decision.Reason == ReasonDryRunRecorded {
+		trigger := decision.Trigger
+		hop.WouldStart = &trigger
+	}
+	return hop
+}
+
+func buildHopPolicy(
+	ctx context.Context,
+	pipeline *rolloutsv1alpha1.PromotionPipeline,
+	fromName string,
+	toCluster rolloutsv1alpha1.PromotionCluster,
+	rolloutName, composition string,
+	from ClusterView,
+	read func(clusterName, rolloutName, composition, wantRevision string) (ClusterView, error),
+	clFor func(clusterName string) (client.Client, error),
+) (HopPolicy, error) {
+	policy := HopPolicy{
+		Now:           nowFrom(ctx),
+		Approval:      toCluster.Approval,
+		RevisionMatch: toCluster.RevisionMatchEnabled(),
+		DryRunChain:   pipeline.Spec.DryRunChainEnabled(),
+	}
+	if toCluster.Soak != nil && toCluster.Soak.Duration > 0 {
+		policy.Soak = toCluster.Soak.Duration
+	}
+	if !viewIsDryRun(from) {
+		if rev, ok := matchingSkip(pipeline, fromName, rolloutName, composition); ok {
+			policy.SkipRevision = rev
+		}
+	}
+	revision := policyRevision(from, policy)
+	if revision == "" {
+		return policy, nil
+	}
+	if err := applyFleetGate(ctx, &policy, pipeline, fromName, toCluster, composition, revision, from, read, clFor); err != nil {
+		return HopPolicy{}, err
+	}
+	if toCluster.ApprovalRequired() {
+		policy.Approved = approvePresent(pipeline, toCluster.Name, rolloutName, composition, revision)
+	}
+	return policy, nil
+}
+
+func applyFleetGate(
+	ctx context.Context,
+	policy *HopPolicy,
+	pipeline *rolloutsv1alpha1.PromotionPipeline,
+	fromName string,
+	toCluster rolloutsv1alpha1.PromotionCluster,
+	composition, revision string,
+	from ClusterView,
+	read func(clusterName, rolloutName, composition, wantRevision string) (ClusterView, error),
+	clFor func(clusterName string) (client.Client, error),
+) error {
+	if toCluster.MinCompletedPercent == nil {
+		return nil
+	}
+	inFleet, err := inPromotionFleet(from, composition, toCluster.FleetSelector)
+	if err != nil {
+		return err
+	}
+	if !inFleet {
+		return nil
+	}
+	matching, completed, err := countFleet(ctx, pipeline, fromName, composition, revision, toCluster.FleetSelector, read, clFor)
+	if err != nil {
+		return err
+	}
+	policy.FleetEnabled = true
+	policy.MinCompletedPercent = *toCluster.MinCompletedPercent
+	policy.FleetMatching = matching
+	policy.FleetCompleted = completed
+	return nil
+}
+
+func policyRevision(from ClusterView, policy HopPolicy) string {
+	skip := policy.SkipRevision
+	if viewIsDryRun(from) {
+		skip = ""
+	}
+	if skip != "" {
+		return skip
+	}
+	if !from.Found {
+		return ""
+	}
+	revision, _, _, ok := predecessorRevision(from, policy)
+	if !ok {
+		return ""
+	}
+	return revision
 }
 
 func appendStart(
@@ -254,6 +367,38 @@ func appendStart(
 	}
 	noteWrite(ctx, fromName, toName, decision.Trigger.Composition, decision.Revision)
 	return nil
+}
+
+type clockKey struct{}
+
+type requeueKey struct{}
+
+func withNow(ctx context.Context, now time.Time) context.Context {
+	return context.WithValue(ctx, clockKey{}, now)
+}
+
+func nowFrom(ctx context.Context) time.Time {
+	now, _ := ctx.Value(clockKey{}).(time.Time)
+	if now.IsZero() {
+		return time.Now()
+	}
+	return now
+}
+
+func withRequeue(ctx context.Context) (context.Context, *time.Duration) {
+	after := time.Duration(0)
+	return context.WithValue(ctx, requeueKey{}, &after), &after
+}
+
+func noteRequeue(ctx context.Context, after time.Duration) {
+	if after <= 0 {
+		return
+	}
+	dest, _ := ctx.Value(requeueKey{}).(*time.Duration)
+	if dest == nil || (*dest > 0 && after >= *dest) {
+		return
+	}
+	*dest = after
 }
 
 func noteWrite(ctx context.Context, from, to, composition, revision string) {

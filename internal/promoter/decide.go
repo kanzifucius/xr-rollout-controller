@@ -17,7 +17,7 @@ limitations under the License.
 package promoter
 
 import (
-	"fmt"
+	"time"
 
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
 	"github.com/kanzifucius/xr-rollout-controller/internal/rollout"
@@ -49,6 +49,11 @@ const (
 	ReasonAlreadyStarted         = "AlreadyStarted"
 	ReasonStartWriteFailed       = "StartWriteFailed"
 	ReasonDryRun                 = "DryRun"
+	ReasonApprovalRequired       = "ApprovalRequired"
+	ReasonRevisionMismatch       = "RevisionMismatch"
+	ReasonInterClusterSoak       = "InterClusterSoak"
+	ReasonFleetIncomplete        = "FleetIncomplete"
+	ReasonDryRunRecorded         = "DryRunRecorded"
 
 	// Actor is the audit name written on a promoter Start trigger.
 	Actor = "xr-rollout-promoter"
@@ -63,15 +68,37 @@ type ClusterView struct {
 	HasState           bool
 	LatestRevisionName string
 	RevisionPresent    bool
+	// Labels are the CompositionRollout labels. Fleet selectors use them.
+	Labels map[string]string
+}
+
+// HopPolicy is the opt-in gate for one hop. The zero value keeps DecideHop.
+type HopPolicy struct {
+	Now                 time.Time
+	Approval            rolloutsv1alpha1.PromotionApproval
+	Approved            bool
+	RevisionMatch       bool
+	Soak                time.Duration
+	FleetEnabled        bool
+	MinCompletedPercent int32
+	FleetMatching       int
+	FleetCompleted      int
+	SkipRevision        string
+	DryRunChain         bool
+	RecordDryRun        bool
+	CompletedAt         time.Time
 }
 
 // Decision is whether the next cluster should receive a Start.
 type Decision struct {
-	Action   string
-	Reason   string
-	Revision string
-	Message  string
-	Trigger  rolloutsv1alpha1.RolloutTrigger
+	Action       string
+	Reason       string
+	Revision     string
+	Message      string
+	Trigger      rolloutsv1alpha1.RolloutTrigger
+	RequeueAfter time.Duration
+	UsedSkip     bool
+	UsedApproval bool
 }
 
 func viewIsDryRun(v ClusterView) bool {
@@ -86,37 +113,45 @@ func dryRunBlocked(message string) Decision {
 }
 
 // DecideHop reports what to do for one adjacent pair and one composition.
+// A zero HopPolicy is the default gate.
 func DecideHop(from, to ClusterView, composition string) Decision {
-	if !from.Engaged || !to.Engaged {
+	return DecideHopPolicy(from, to, composition, HopPolicy{})
+}
+
+// DecideHopPolicy applies one hop's optional gates. Unset policy fields
+// keep DecideHop's answers.
+func DecideHopPolicy(from, to ClusterView, composition string, policy HopPolicy) Decision {
+	skip := policy.SkipRevision
+	if viewIsDryRun(from) {
+		skip = ""
+	}
+	if !to.Engaged || (skip == "" && !from.Engaged) {
 		return Decision{Action: ActionWait, Reason: ReasonClusterNotEngaged}
+	}
+	if skip != "" {
+		policy.SkipRevision = skip
+		policy.RecordDryRun = false
+		policy.CompletedAt = completionTime(from, false)
+		d := decideDestination(to, composition, skip, policy)
+		d.UsedSkip = true
+		return d
 	}
 	if !from.Found {
 		return Decision{Action: ActionWait, Reason: ReasonRolloutNotFound}
 	}
-	if viewIsDryRun(from) {
-		d := dryRunBlocked("predecessor rollout is a dry run")
-		if from.HasState {
-			d.Revision = from.State.TargetRevision.Name
-		}
-		return d
-	}
-	if from.HasState && from.State.Phase == rolloutsv1alpha1.PhasePaused {
-		if from.State.PauseReason != nil && from.State.PauseReason.Reason == rolloutsv1alpha1.PauseReasonSuspended {
-			return Decision{Action: ActionBlocked, Reason: ReasonSuspended}
-		}
-		return Decision{Action: ActionBlocked, Reason: ReasonPredecessorPaused}
-	}
-	if predecessorAborted(from) {
-		return Decision{Action: ActionBlocked, Reason: ReasonPredecessorAborted}
-	}
-	rev, ok := completedRevision(from)
+	rev, record, early, ok := predecessorRevision(from, policy)
 	if !ok {
+		if early.Action != "" {
+			return early
+		}
 		return Decision{Action: ActionWait, Reason: ReasonNoCompletedRevision}
 	}
-	return decideDestination(to, composition, rev)
+	policy.RecordDryRun = record
+	policy.CompletedAt = completionTime(from, record)
+	return decideDestination(to, composition, rev, policy)
 }
 
-func decideDestination(to ClusterView, composition, rev string) Decision {
+func decideDestination(to ClusterView, composition, rev string, policy HopPolicy) Decision {
 	d := Decision{Revision: rev}
 	if !to.Found {
 		d.Action = ActionWait
@@ -139,16 +174,8 @@ func decideDestination(to ClusterView, composition, rev string) Decision {
 		d.Reason = ReasonDestinationSuspended
 		return d
 	}
-	if !to.RevisionPresent {
-		d.Action = ActionWait
-		d.Reason = ReasonRevisionNotPresent
-		return d
-	}
-	if to.LatestRevisionName != rev {
-		d.Action = ActionBlocked
-		d.Reason = ReasonRevisionNotLatest
-		d.Message = fmt.Sprintf("latest on the next cluster is %s", to.LatestRevisionName)
-		return d
+	if held, ok := holdForRevision(to, rev, policy); ok {
+		return held
 	}
 	switch ackOutcome(to.State, rev) {
 	case rollout.TriggerOutcomeStale:
@@ -165,7 +192,7 @@ func decideDestination(to ClusterView, composition, rev string) Decision {
 		d.Reason = ReasonAlreadyWritten
 		return d
 	}
-	return decideStart(to, composition, rev, d)
+	return applyWriteGuards(decideStart(to, composition, rev, d), policy)
 }
 
 func decideStart(to ClusterView, composition, rev string, d Decision) Decision {

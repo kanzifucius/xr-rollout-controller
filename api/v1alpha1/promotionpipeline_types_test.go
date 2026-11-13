@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -35,5 +36,34 @@ func TestPromotionPipelineRegisters(t *testing.T) {
 	}
 	if _, ok := obj.(*PromotionPipeline); !ok {
 		t.Fatalf("got %T, want *PromotionPipeline", obj)
+	}
+}
+
+func TestPromotionGatesDefaultOff(t *testing.T) {
+	t.Parallel()
+	cluster := PromotionCluster{Name: "dev"}
+	if cluster.ApprovalRequired() || cluster.RevisionMatchEnabled() {
+		t.Fatalf("unset cluster gates = approval %v revisionMatch %v", cluster.ApprovalRequired(), cluster.RevisionMatchEnabled())
+	}
+	spec := PromotionPipelineSpec{}
+	if spec.DryRunChainEnabled() {
+		t.Fatal("unset dryRunChain was enabled")
+	}
+
+	on := true
+	percent := int32(50)
+	cluster.Approval = PromotionApprovalApprove
+	cluster.RevisionMatch = &on
+	cluster.MinCompletedPercent = &percent
+	spec.DryRunChain = &on
+	if !cluster.ApprovalRequired() || !cluster.RevisionMatchEnabled() || !spec.DryRunChainEnabled() {
+		t.Fatalf("set gates = approval %v revisionMatch %v dryRun %v", cluster.ApprovalRequired(), cluster.RevisionMatchEnabled(), spec.DryRunChainEnabled())
+	}
+	if cluster.Soak != nil {
+		t.Fatal("soak was set")
+	}
+	cluster.Soak = &metav1.Duration{Duration: 0}
+	if cluster.MinCompletedPercent == nil || *cluster.MinCompletedPercent != 50 {
+		t.Fatalf("percent = %#v", cluster.MinCompletedPercent)
 	}
 }

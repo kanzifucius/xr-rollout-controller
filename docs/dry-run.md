@@ -39,6 +39,8 @@ Clearing `spec.dryRun` drops the simulation report and returns that composition 
 
 A dry run does not open the next cluster. The promoter leaves the hop `Blocked` with reason `DryRun` when either the predecessor or the next `CompositionRollout` is a dry run. It does not append `Start`. `dryRun.completedAt` is not a completed revision.
 
+Set `spec.dryRunChain: true` on the `PromotionPipeline` to record the `Start` that a finished dry-run predecessor would have written. The record is `status.hops[].wouldStart`. The promoter still does not write it, and a dry run still does not set `completedAt`, publish phase `Completed`, or patch XRs. Leave `dryRunChain` unset to keep the hop `Blocked`.
+
 ## Trying it
 
 Set `dryRun: true` and a short `soak.duration` on a copy of the object you want to test. Watch:
