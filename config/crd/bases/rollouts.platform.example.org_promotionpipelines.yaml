@@ -56,14 +56,101 @@ spec:
                   Each later entry receives a Start after the previous cluster completes
                   the same CompositionRollout name and composition. Names must be unique.
                   The length and name bounds keep that rule inside the apiserver CEL cost limit.
+                  Optional per-cluster fields hold that write. Unset fields keep the default.
                 items:
-                  description: PromotionCluster is one engaged cluster. List order
-                    is the promotion order.
+                  description: |-
+                    PromotionCluster is one engaged cluster. List order is the promotion order.
+                    Optional fields are gates for the hop into this cluster. The first cluster
+                    is never sent a Start, so its gates are unused. Leave them unset on dev
+                    and test to keep those hops automatic.
                   properties:
+                    approval:
+                      allOf:
+                      - enum:
+                        - Approve
+                      - enum:
+                        - Approve
+                      description: |-
+                        Approval, when Approve, waits for an Approve trigger for this cluster
+                        and revision after the previous cluster has completed, and before
+                        Start is written. Unset writes Start without that trigger.
+                      type: string
+                    fleetSelector:
+                      description: |-
+                        FleetSelector restricts which CompositionRollouts count toward
+                        MinCompletedPercent. Unset means every rollout on the previous
+                        cluster that governs the composition.
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector
+                            requirements. The requirements are ANDed.
+                          items:
+                            description: |-
+                              A label selector requirement is a selector that contains values, a key, and an operator that
+                              relates the key and values.
+                            properties:
+                              key:
+                                description: key is the label key that the selector
+                                  applies to.
+                                type: string
+                              operator:
+                                description: |-
+                                  operator represents a key's relationship to a set of values.
+                                  Valid operators are In, NotIn, Exists and DoesNotExist.
+                                type: string
+                              values:
+                                description: |-
+                                  values is an array of string values. If the operator is In or NotIn,
+                                  the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                  the values array must be empty. This array is replaced during a strategic
+                                  merge patch.
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                            map is equivalent to an element of matchExpressions, whose key field is "key", the
+                            operator is "In", and the values array contains only "value". The requirements are ANDed.
+                          type: object
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    minCompletedPercent:
+                      description: |-
+                        MinCompletedPercent is the percentage of matching CompositionRollouts
+                        on the previous cluster that must have completed this revision before
+                        Start is written. Matching rollouts govern the same composition.
+                        fleetSelector narrows them by label. 100 requires every matching
+                        rollout. Unset promotes each CompositionRollout on its own.
+                      format: int32
+                      maximum: 100
+                      minimum: 1
+                      type: integer
                     name:
                       description: Name matches the kubeconfig Secret metadata.name.
                       maxLength: 253
                       minLength: 1
+                      type: string
+                    revisionMatch:
+                      description: |-
+                        RevisionMatch holds this hop while this cluster's latest
+                        CompositionRevision for the composition differs from the revision
+                        that completed on the previous cluster. Start names only that same
+                        revision. Unset keeps the existing latest-revision check.
+                      type: boolean
+                    soak:
+                      description: |-
+                        Soak waits this long after the previous cluster completed before
+                        Start is written. It is not the in-cluster canary soak.
                       type: string
                   required:
                   - name
@@ -74,12 +161,114 @@ spec:
                 x-kubernetes-validations:
                 - message: cluster names must be unique
                   rule: self.all(c, self.exists_one(x, x.name == c.name))
+              dryRunChain:
+                description: |-
+                  DryRunChain records the Start a spec.dryRun predecessor would cause
+                  on the next cluster and does not write it. Unset leaves that hop
+                  Blocked with reason DryRun.
+                type: boolean
+              triggers:
+                description: |-
+                  Triggers are append-only. The promoter records them in status and does
+                  not delete or edit them. Approve opens a cluster that requires approval.
+                  Skip marks a cluster as satisfied for one revision.
+                items:
+                  description: |-
+                    PromotionTrigger is one pipeline trigger. Empty rollout and composition
+                    match every rollout and composition on that cluster.
+                  properties:
+                    action:
+                      allOf:
+                      - enum:
+                        - Approve
+                        - Skip
+                      - enum:
+                        - Approve
+                        - Skip
+                      description: PromotionTriggerAction is an append-only pipeline
+                        trigger.
+                      type: string
+                    actor:
+                      description: Actor is free-text identification for audit.
+                      type: string
+                    cluster:
+                      description: Cluster is the pipeline cluster this trigger applies
+                        to.
+                      maxLength: 253
+                      minLength: 1
+                      type: string
+                    composition:
+                      default: ""
+                      description: |-
+                        Composition narrows the trigger to one composition.
+                        Empty matches every composition. The empty default is a map key.
+                      type: string
+                    revision:
+                      default: ""
+                      description: |-
+                        Revision is the CompositionRevision name. Empty does not match.
+                        The empty default keeps this list-map key set when callers omit it.
+                      type: string
+                    rollout:
+                      default: ""
+                      description: |-
+                        Rollout narrows the trigger to one CompositionRollout name.
+                        Empty matches every rollout. The empty default is a map key.
+                      type: string
+                  required:
+                  - action
+                  - cluster
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - cluster
+                - action
+                - revision
+                - rollout
+                - composition
+                x-kubernetes-list-type: map
             required:
             - clusters
             type: object
           status:
             description: PromotionPipelineStatus is the observed hops.
             properties:
+              acknowledgedTriggers:
+                description: |-
+                  AcknowledgedTriggers are pipeline triggers the promoter has accepted.
+                  Spec triggers are not removed.
+                items:
+                  description: |-
+                    AcknowledgedPromotionTrigger records a pipeline trigger the promoter
+                    accepted. The spec trigger is left in place.
+                  properties:
+                    acknowledgedAt:
+                      format: date-time
+                      type: string
+                    action:
+                      description: PromotionTriggerAction is an append-only pipeline
+                        trigger.
+                      enum:
+                      - Approve
+                      - Skip
+                      type: string
+                    cluster:
+                      type: string
+                    composition:
+                      type: string
+                    outcome:
+                      description: Outcome is Applied.
+                      type: string
+                    revision:
+                      type: string
+                    rollout:
+                      type: string
+                  required:
+                  - action
+                  - cluster
+                  - outcome
+                  type: object
+                type: array
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current
@@ -162,6 +351,42 @@ spec:
                       type: string
                     to:
                       type: string
+                    wouldStart:
+                      description: |-
+                        WouldStart is the Start a dry-run predecessor would have appended.
+                        The promoter does not write it onto the next cluster.
+                      properties:
+                        action:
+                          allOf:
+                          - enum:
+                            - Start
+                            - Approve
+                            - Resume
+                            - Abort
+                          - enum:
+                            - Start
+                            - Approve
+                            - Resume
+                            - Abort
+                          description: TriggerAction is a manual control action.
+                          type: string
+                        actor:
+                          description: Actor is free-text identification for audit.
+                          type: string
+                        composition:
+                          description: Composition this trigger applies to.
+                          type: string
+                        revision:
+                          default: ""
+                          description: |-
+                            Revision the action applies to (a CompositionRevision name). Required
+                            for Approve/Resume/Abort. Optional for Start: empty means latest.
+                            The empty default keeps this list-map key set when callers omit it.
+                          type: string
+                      required:
+                      - action
+                      - composition
+                      type: object
                   required:
                   - action
                   - composition
