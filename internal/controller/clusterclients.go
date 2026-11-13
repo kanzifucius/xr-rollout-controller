@@ -28,9 +28,11 @@ import (
 )
 
 // clusterClients is the API surface for one cluster. The local manager leaves
-// cluster empty and clusterObj nil.
+// cluster empty and clusterObj nil. api reads and writes CompositionRollout.
+// When api is nil, that client is client. client patches composite resources.
 type clusterClients struct {
 	client      client.Client
+	api         client.Client
 	dynamic     dynamic.Interface
 	mapper      meta.RESTMapper
 	recorder    record.EventRecorder
@@ -58,23 +60,46 @@ func localClients(r *CompositionRolloutReconciler) clusterClients {
 	return cc
 }
 
+func (cc clusterClients) apiClient() client.Client {
+	if cc.api != nil {
+		return cc.api
+	}
+	return cc.client
+}
+
 // Placement is where the CompositionRollout reconciler runs.
 type Placement int
 
 const (
 	PlacementNone Placement = iota
 	PlacementLocal
-	PlacementRemote
+	PlacementHub
 )
 
-// PlacementFor decides the rollout controller from the process flags.
-// Remote reconcile replaces the local controller even when both flags are set.
-func PlacementFor(enableRollout, remoteReconcile bool) Placement {
-	if remoteReconcile {
-		return PlacementRemote
+const (
+	// ModeLocal runs the CompositionRollout controller on this cluster.
+	ModeLocal = "local"
+	// ModeRemote appends Start only. Each cluster runs its own controller.
+	ModeRemote = "remote"
+	// ModeHub keeps CompositionRollout on this install and patches spoke XRs.
+	ModeHub = "hub"
+)
+
+// PlacementFor decides where CompositionRollout is reconciled.
+// Hub mode does not also start the local controller.
+// Remote mode does not reconcile CompositionRollout on this install.
+func PlacementFor(enableRollout bool, mode string) Placement {
+	switch mode {
+	case ModeHub:
+		return PlacementHub
+	case ModeRemote:
+		return PlacementNone
+	case ModeLocal:
+		if enableRollout {
+			return PlacementLocal
+		}
+		return PlacementNone
+	default:
+		return PlacementNone
 	}
-	if enableRollout {
-		return PlacementLocal
-	}
-	return PlacementNone
 }

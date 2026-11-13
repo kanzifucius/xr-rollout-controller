@@ -63,7 +63,12 @@ type CompositionRolloutReconciler struct {
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile moves cluster state toward the desired CompositionRollout spec.
+// With a remote reconciler attached, the object lives on the hub and spec.cluster
+// selects the spoke whose composite resources are patched.
 func (r *CompositionRolloutReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if r.remote != nil {
+		return r.reconcileHub(ctx, req)
+	}
 	return r.reconcile(ctx, localClients(r), req)
 }
 
@@ -71,14 +76,14 @@ func (r *CompositionRolloutReconciler) reconcile(ctx context.Context, cc cluster
 	logger := log.FromContext(ctx)
 
 	cr := &rolloutsv1alpha1.CompositionRollout{}
-	if err := cc.client.Get(ctx, req.NamespacedName, cr); err != nil {
+	if err := cc.apiClient().Get(ctx, req.NamespacedName, cr); err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
 
-	overlap, compName, err := r.detectOverlap(ctx, cc, cr)
+	overlap, message, err := r.detectOverlap(ctx, cc, cr)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -89,14 +94,14 @@ func (r *CompositionRolloutReconciler) reconcile(ctx context.Context, cc cluster
 			st.Phase = rolloutsv1alpha1.PhasePaused
 			st.PauseReason = &rolloutsv1alpha1.PauseReason{
 				Reason:  rolloutsv1alpha1.PauseReasonOverlap,
-				Message: "composition " + compName + " is claimed by another CompositionRollout",
+				Message: message,
 			}
 		}
 		updateRolloutConditions(cr)
-		if err := cc.client.Status().Update(ctx, cr); err != nil {
+		if err := cc.apiClient().Status().Update(ctx, cr); err != nil {
 			return ctrl.Result{}, err
 		}
-		cc.recorder.Eventf(cr, "Warning", "RolloutPaused", "overlap on composition %s", compName)
+		cc.recorder.Eventf(cr, "Warning", "RolloutPaused", "%s", message)
 		return ctrl.Result{RequeueAfter: periodicRequeue}, nil
 	}
 
@@ -131,7 +136,7 @@ func (r *CompositionRolloutReconciler) reconcile(ctx context.Context, cc cluster
 
 	cr.Status.ObservedGeneration = cr.Generation
 	updateRolloutConditions(cr)
-	if err := cc.client.Status().Update(ctx, cr); err != nil {
+	if err := cc.apiClient().Status().Update(ctx, cr); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -140,19 +145,14 @@ func (r *CompositionRolloutReconciler) reconcile(ctx context.Context, cc cluster
 
 func (r *CompositionRolloutReconciler) detectOverlap(ctx context.Context, cc clusterClients, cr *rolloutsv1alpha1.CompositionRollout) (bool, string, error) {
 	var all rolloutsv1alpha1.CompositionRolloutList
-	if err := cc.client.List(ctx, &all); err != nil {
+	if err := cc.apiClient().List(ctx, &all); err != nil {
 		return false, "", err
 	}
-	for i := range all.Items {
-		other := &all.Items[i]
-		if other.Name == cr.Name {
-			continue
-		}
-		if name, ok := compositionNamesOverlap(cr.Spec.Compositions, other.Spec.Compositions); ok {
-			return true, name, nil
-		}
+	message := overlapMessage(cr, all.Items, cc.cluster)
+	if message == "" {
+		return false, "", nil
 	}
-	return false, "", nil
+	return true, message, nil
 }
 
 // SetupWithManager registers the reconciler with the Manager.
@@ -170,7 +170,11 @@ func (r *CompositionRolloutReconciler) SetupWithManager(mgr ctrl.Manager) error 
 	bld := ctrl.NewControllerManagedBy(mgr).
 		For(&rolloutsv1alpha1.CompositionRollout{}).
 		Named("compositionrollout")
-	bld = r.setupStaticWatches(bld)
+	// Remote mode watches Compositions and composite resources on the spokes.
+	// The hub manager only needs the CompositionRollout informer.
+	if r.remote == nil {
+		bld = r.setupStaticWatches(bld)
+	}
 
 	ctr, err := bld.Build(r)
 	if err != nil {

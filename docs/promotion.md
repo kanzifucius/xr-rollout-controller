@@ -1,8 +1,8 @@
 # Promotion across clusters
 
-The promoter runs in the management cluster. Each spoke still runs its own rollout controller, and that controller still rolls only that cluster's composite resources (XRs). The promoter does not patch an XR. It opens the next cluster's gate by appending one `Start` trigger.
+Remote and hub use [sigs.k8s.io/multicluster-runtime](https://github.com/kubernetes-sigs/multicluster-runtime) v0.20.4-alpha.7. It is not a GA multi-cluster API. Engagement, kubeconfig Secrets, and the hub layout can change. Local mode does not use it.
 
-The management process can also run the rollout controller for those spokes (`--remote-reconcile`). The promoter still only appends `Start`. Spoke Deployments are then uninstalled. The spoke `--environment` pod flag is replaced by the Secret annotation, and `acceptance` is still not required to equal the cluster name `acc`.
+This page is `--mode=remote`. Each spoke runs its own controller and rolls only that cluster's composite resources (XRs). This install appends one `Start` and does not patch an XR. To keep the objects on the management cluster instead, use [Hub](hub.md). Install steps are in [Getting started](getting-started/remote.md).
 
 One management install is given kubeconfigs for `dev`, `test`, `acc`, and `prod`. Each kubeconfig is a Secret in the release namespace:
 
@@ -21,7 +21,7 @@ data:
 
 The Secret name is the cluster name. The data key is `kubeconfig`. Repeat the Secret for `test`, `acc`, and `prod`. The chart does not create these Secrets.
 
-The order is not the order the Secrets were created. It is `PromotionPipeline.spec.clusters`, which the chart renders from `promoter.clusters` (default `dev`, `test`, `acc`, `prod`). A pipeline lists 2 to 32 clusters. Each name is unique and at most 253 characters, the same limit as a Secret name. Enable the promoter with `--set promoter.enabled=true` and, on that management install, `--set rollout.enabled=false`. A spoke install does the opposite: the rollout controller stays on, and the promoter stays off.
+The order is not the order the Secrets were created. It is `PromotionPipeline.spec.clusters`, which the chart renders from `promoter.clusters` (default `dev`, `test`, `acc`, `prod`). A pipeline lists 2 to 32 clusters. Each name is unique and at most 253 characters, the same limit as a Secret name. The management install is `--set mode=remote`. Each spoke is `--set mode=local`.
 
 `dev` keeps `autoStart: true`. `test`, `acc`, and `prod` set `autoStart: false`. The promoter does not change that field. If a later cluster leaves `autoStart: true`, that cluster can start a revision before the previous one finishes. The promoter will not append a `Start` that the spoke would acknowledge as `Stale`. It records that the revision has already started, and it still waits for that cluster to finish before opening the cluster after it.
 
@@ -35,15 +35,13 @@ A hop writes one trigger:
 
 The field manager is `xr-rollout-promoter`. `Paused` or `Aborted` on the lower cluster leaves the next cluster unstarted. Abort does not roll XRs back.
 
-The spoke `--environment` value is still the in-cluster policy key (`acceptance` in the samples). It is not required to equal the cluster name `acc`.
+On a spoke the policy key is that pod's `--environment`. A cluster named `acc` is often installed with `--set environment=acceptance`.
 
 Apply spoke `CompositionRollout` objects with server-side apply, so GitOps does not own the promoter's trigger key. `spec.triggers` is a map keyed by composition, action, and revision. The controller acknowledges a trigger in status. It does not delete it.
 
 A spoke `CompositionRollout` with `spec.dryRun: true` does not receive `Start`. A predecessor that is a dry run does not open the next cluster. The hop reason is `DryRun`. Set `spec.dryRunChain: true` to record that `Start` on the pipeline instead. The trigger is still not written. See [Optional hop rules](#optional-hop-rules).
 
-On each spoke, bind the kubeconfig identity to the ClusterRole in `config/rbac/promoter_remote_role.yaml` (also packaged at `charts/xr-rollout-controller/files/promoter-remote-rbac.yaml`). Do not reuse the XR aggregation role. That remote role can read rollout status and patch `spec.triggers`. It cannot write status, and it cannot touch XRs.
-
-The management process reaches each cluster with the [multicluster-runtime](https://github.com/kubernetes/community/blob/main/sig-multicluster/README.md) client library. Nothing else from that SIG has to be installed on the spokes.
+On each spoke, bind the kubeconfig user to the ClusterRole in `config/rbac/promoter_remote_role.yaml` (also at `charts/xr-rollout-controller/files/promoter-remote-rbac.yaml`). The role name is `xr-rollout-promoter`. It can read rollout status and patch `spec.triggers`. It cannot write status, and it cannot touch XRs. The XR aggregate role stays on the spoke controller's ServiceAccount.
 
 ## Optional hop rules
 

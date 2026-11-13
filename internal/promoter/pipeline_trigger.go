@@ -73,15 +73,15 @@ func triggerMatches(trigger rolloutsv1alpha1.PromotionTrigger, cluster, rolloutN
 	return true
 }
 
-func acknowledgeUsed(pipeline *rolloutsv1alpha1.PromotionPipeline, from, to, rolloutName, composition, revision string, decision Decision, now time.Time) {
+func acknowledgeUsed(pipeline *rolloutsv1alpha1.PromotionPipeline, from, to, skipRollout, approveRollout, composition, revision string, decision Decision, now time.Time) {
 	if pipeline == nil {
 		return
 	}
 	if decision.UsedSkip {
-		ackAction(pipeline, from, rolloutName, composition, revision, rolloutsv1alpha1.PromotionTriggerSkip, now)
+		ackAction(pipeline, from, skipRollout, composition, revision, rolloutsv1alpha1.PromotionTriggerSkip, now)
 	}
 	if decision.UsedApproval {
-		ackAction(pipeline, to, rolloutName, composition, revision, rolloutsv1alpha1.PromotionTriggerApprove, now)
+		ackAction(pipeline, to, approveRollout, composition, revision, rolloutsv1alpha1.PromotionTriggerApprove, now)
 	}
 }
 

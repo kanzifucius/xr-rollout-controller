@@ -13,6 +13,20 @@ Kubebuilder controller that safely rolls out Crossplane **CompositionRevision** 
 
 **Documentation:** [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/) (Material for MkDocs + mike; the docs workflow publishes the `gh-pages` tree to GitHub Pages).
 
+## Modes
+
+`--mode` chooses where `CompositionRollout` lives. The default is `local`.
+
+| Mode | Pick it when | What this install does |
+|------|----------------|------------------------|
+| `local` | The controller and the composite resources (XRs) are on one cluster. Also the install on each spoke for `remote`. | Rolls XRs on this cluster. |
+| `remote` | Each cluster should roll its own XRs, and one place should open the next cluster. | Appends `Start` only. Each spoke runs `local`. |
+| `hub` | You want one object per cluster on the management cluster, and no controller on the spokes. | Keeps `CompositionRollout` and status here, and patches `compositionRevisionRef` on spoke XRs. |
+
+Walkthroughs: [local](docs/getting-started/local.md), [remote](docs/getting-started/remote.md), [hub](docs/getting-started/hub.md).
+
+`remote` and `hub` use [sigs.k8s.io/multicluster-runtime](https://github.com/kubernetes-sigs/multicluster-runtime) v0.20.4-alpha.7. That module is not a GA multi-cluster API, so engagement, kubeconfig Secrets, and the hub layout can change. `local` does not use it.
+
 Design: [docs/xr-rollout-controller-plan.md](docs/xr-rollout-controller-plan.md)  
 Implementation phases: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
 
@@ -30,7 +44,8 @@ Controller flags (set on the Deployment):
 
 | Flag | Default | Purpose |
 |------|---------|---------|
-| `--environment` | `dev` | Selects `spec.promotion.environments[name]` (or defaultPolicy) |
+| `--mode` | `local` | `local`, `remote`, or `hub`. See [Modes](#modes). |
+| `--environment` | `dev` | Selects `spec.promotion.environments[name]` (or defaultPolicy). Used in `local`. |
 | `--force-ownership` | `false` | Force SSA field ownership on XR revision refs |
 | `--metrics-aggregate-only` | `false` | Drop per-composition Prometheus labels |
 
@@ -54,6 +69,7 @@ Replace `1.2.3` with the chart version. That is the git tag with the leading `v`
 | `image.repository` | `ghcr.io/kanzifucius/xr-rollout-controller` | Controller image repository |
 | `image.tag` | chart `appVersion` | Image tag. Release charts set `appVersion` to the git tag, for example `v1.2.3` |
 | `environment` | `dev` | Passed as `--environment` |
+| `mode` | `local` | `local`, `remote`, or `hub` |
 | `resources` | 10m/64Mi request, 500m/128Mi limit | Container resources |
 | `metrics.service.enabled` | `true` | Metrics Service on port 8443 |
 | `metrics.serviceMonitor.enabled` | `false` | Prometheus Operator ServiceMonitor. Requires the metrics Service |

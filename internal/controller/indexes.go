@@ -29,10 +29,16 @@ import (
 // FieldIndexCompositionName indexes CompositionRollout by spec.compositions[].name.
 const FieldIndexCompositionName = "spec.compositions"
 
+// FieldIndexCluster indexes CompositionRollout by spec.cluster.
+const FieldIndexCluster = "spec.cluster"
+
 func setupIndexes(mgr ctrl.Manager) error {
 	ctx := context.Background()
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &rolloutsv1alpha1.CompositionRollout{}, FieldIndexCompositionName, compositionNameIndex); err != nil {
 		return fmt.Errorf("index CompositionRollout: %w", err)
+	}
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &rolloutsv1alpha1.CompositionRollout{}, FieldIndexCluster, clusterNameIndex); err != nil {
+		return fmt.Errorf("index CompositionRollout cluster: %w", err)
 	}
 	return nil
 }
@@ -47,4 +53,12 @@ func compositionNameIndex(raw client.Object) []string {
 		names = append(names, cr.Spec.Compositions[i].Name)
 	}
 	return names
+}
+
+func clusterNameIndex(raw client.Object) []string {
+	cr, ok := raw.(*rolloutsv1alpha1.CompositionRollout)
+	if !ok || cr.Spec.Cluster == "" {
+		return nil
+	}
+	return []string{cr.Spec.Cluster}
 }

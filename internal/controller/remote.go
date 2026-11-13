@@ -47,24 +47,45 @@ type ClusterSource interface {
 	Environment(clusterName string) (string, bool)
 }
 
-// RemoteReconciler reconciles CompositionRollout on each engaged cluster.
+// RemoteReconciler watches spoke Compositions, CompositionRevisions, and composite
+// resources, and reconciles the hub CompositionRollout for that cluster.
+// The CompositionRollout object and its status stay on the hub.
 type RemoteReconciler struct {
 	Inner    *CompositionRolloutReconciler
 	Clusters ClusterSource
+	Hub      client.Client
 	mc       mccontroller.Controller
 }
 
-// Reconcile runs the rollout state machine against the cluster that owns the object.
-// An empty cluster name is the local manager, which this controller does not serve.
+// Reconcile handles a spoke event that names a hub CompositionRollout.
+// An empty cluster name is the local manager. The hub controller serves that queue.
 func (r *RemoteReconciler) Reconcile(ctx context.Context, req mcreconcile.Request) (ctrl.Result, error) {
-	if req.ClusterName == "" {
+	if req.ClusterName == "" || req.Name == "" || r.Inner == nil {
 		return ctrl.Result{}, nil
 	}
-	cc, err := r.clientsFor(ctx, req.ClusterName)
+	return r.Inner.reconcileHub(ctx, req.Request)
+}
+
+// reconcileHub loads the hub object and patches composite resources on spec.cluster.
+// An empty spec.cluster is an error: no patch and no status write.
+func (r *CompositionRolloutReconciler) reconcileHub(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	if r.remote == nil {
+		return ctrl.Result{}, fmt.Errorf("remote reconciler is not configured")
+	}
+	cr := &rolloutsv1alpha1.CompositionRollout{}
+	if err := r.Get(ctx, req.NamespacedName, cr); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	if cr.Spec.Cluster == "" {
+		return ctrl.Result{}, fmt.Errorf("CompositionRollout %s: spec.cluster is required", cr.Name)
+	}
+	cc, err := r.remote.clientsFor(ctx, cr.Spec.Cluster)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	return r.Inner.reconcile(ctx, cc, req.Request)
+	cc.api = r.Client
+	cc.recorder = r.Recorder
+	return r.reconcile(ctx, cc, req)
 }
 
 func (r *RemoteReconciler) clientsFor(ctx context.Context, clusterName string) (clusterClients, error) {
@@ -85,7 +106,6 @@ func (r *RemoteReconciler) clientsFor(ctx context.Context, clusterName string) (
 		client:      cl.GetClient(),
 		dynamic:     dyn,
 		mapper:      cl.GetRESTMapper(),
-		recorder:    cl.GetEventRecorderFor("xr-rollout-controller"),
 		environment: env,
 		cluster:     clusterName,
 		cache:       cl.GetCache(),
@@ -94,27 +114,27 @@ func (r *RemoteReconciler) clientsFor(ctx context.Context, clusterName string) (
 	}, nil
 }
 
-// SetupWithManager registers CompositionRollout, CompositionRevision, and Composition
-// watches on provider clusters only. Call it before the manager starts.
+// SetupWithManager registers CompositionRevision and Composition watches on
+// provider clusters only. CompositionRollout is watched on the hub manager.
+// Call it before the manager starts, and before the hub controller's SetupWithManager.
 func (r *RemoteReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 	if r.Inner == nil {
 		return fmt.Errorf("remote reconciler has no inner CompositionRolloutReconciler")
 	}
-	r.Inner.remote = r
-	if err := indexEngagedRollouts(mgr); err != nil {
-		return err
+	if r.Hub == nil {
+		return fmt.Errorf("remote reconciler has no hub client")
 	}
+	r.Inner.remote = r
 	rev := &unstructured.Unstructured{}
 	rev.SetGroupVersionKind(compositionRevisionGVK)
 	comp := &unstructured.Unstructured{}
 	comp.SetGroupVersionKind(compositionGVK)
 	noLocal := mcbuilder.WithEngageWithLocalCluster(false)
-	bld := mcbuilder.ControllerManagedBy(mgr).
+	mc, err := mcbuilder.ControllerManagedBy(mgr).
 		Named("compositionrollout-remote").
-		For(&rolloutsv1alpha1.CompositionRollout{}, noLocal).
 		Watches(rev, r.enqueueRevision, noLocal, mcbuilder.WithPredicates(createOnlyPredicate())).
-		Watches(comp, r.enqueueComposition, noLocal)
-	mc, err := bld.Build(r)
+		Watches(comp, r.enqueueComposition, noLocal).
+		Build(r)
 	if err != nil {
 		return err
 	}
@@ -122,11 +142,7 @@ func (r *RemoteReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 	return nil
 }
 
-func indexEngagedRollouts(mgr mcmanager.Manager) error {
-	return mgr.GetFieldIndexer().IndexField(context.Background(), &rolloutsv1alpha1.CompositionRollout{}, FieldIndexCompositionName, compositionNameIndex)
-}
-
-func (r *RemoteReconciler) enqueueRevision(clusterName string, cl cluster.Cluster) handler.TypedEventHandler[client.Object, mcreconcile.Request] {
+func (r *RemoteReconciler) enqueueRevision(clusterName string, _ cluster.Cluster) handler.TypedEventHandler[client.Object, mcreconcile.Request] {
 	inner := handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 		u, ok := obj.(*unstructured.Unstructured)
 		if !ok {
@@ -136,28 +152,44 @@ func (r *RemoteReconciler) enqueueRevision(clusterName string, cl cluster.Cluste
 		if compName == "" {
 			return nil
 		}
-		return r.requests(ctx, cl.GetClient(), compName)
+		return r.requests(ctx, clusterName, compName)
 	})
 	return mchandler.ForCluster(inner, clusterName)
 }
 
-func (r *RemoteReconciler) enqueueComposition(clusterName string, cl cluster.Cluster) handler.TypedEventHandler[client.Object, mcreconcile.Request] {
+func (r *RemoteReconciler) enqueueComposition(clusterName string, _ cluster.Cluster) handler.TypedEventHandler[client.Object, mcreconcile.Request] {
 	inner := handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
-		return r.requests(ctx, cl.GetClient(), obj.GetName())
+		return r.requests(ctx, clusterName, obj.GetName())
 	})
 	return mchandler.ForCluster(inner, clusterName)
 }
 
-func (r *RemoteReconciler) requests(ctx context.Context, cl client.Client, compName string) []reconcile.Request {
+func (r *RemoteReconciler) requests(ctx context.Context, clusterName, compName string) []reconcile.Request {
+	if r.Hub == nil || clusterName == "" || compName == "" {
+		return nil
+	}
 	var list rolloutsv1alpha1.CompositionRolloutList
-	if err := cl.List(ctx, &list, client.MatchingFields{FieldIndexCompositionName: compName}); err != nil {
+	if err := r.Hub.List(ctx, &list, client.MatchingFields{FieldIndexCluster: clusterName}); err != nil {
 		return nil
 	}
 	reqs := make([]reconcile.Request, 0, len(list.Items))
 	for i := range list.Items {
-		reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: list.Items[i].Name}})
+		item := &list.Items[i]
+		if !compositionListed(item, compName) {
+			continue
+		}
+		reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Name: item.Name}})
 	}
 	return reqs
+}
+
+func compositionListed(cr *rolloutsv1alpha1.CompositionRollout, name string) bool {
+	for i := range cr.Spec.Compositions {
+		if cr.Spec.Compositions[i].Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // watchRemoteXRs registers a lazy XR watch on one engaged cluster.
@@ -180,7 +212,7 @@ func (r *CompositionRolloutReconciler) watchRemoteXRs(cc clusterClients, key xrW
 			if compName == "" {
 				return nil
 			}
-			return r.remote.requests(ctx, cl.GetClient(), compName)
+			return r.remote.requests(ctx, clusterName, compName)
 		})
 		return mchandler.TypedForCluster(inner, clusterName)
 	}

@@ -27,21 +27,14 @@ forceOwnership: false
 # Sets --metrics-aggregate-only when true.
 metricsAggregateOnly: false
 
-# Runs the per-cluster CompositionRollout controller.
-# A management cluster that only promotes sets this to false.
-rollout:
-  enabled: true
+# Where CompositionRollout lives.
+# local: this cluster's controller.
+# remote: this install only appends Start. Each spoke runs mode local.
+# hub: objects and status stay here. This process patches spoke revision refs.
+mode: local
 
-# Reconcile CompositionRollout on engaged clusters from this install.
-# Requires rollout.enabled=false. Spoke pods are not installed.
-# Each kubeconfig Secret needs annotation
-# rollouts.platform.example.org/environment.
-remoteReconcile:
-  enabled: false
-
-# Cross-cluster Start promoter. Spoke installs leave this false.
+# Kubeconfig Secrets for mode remote and mode hub. The chart does not create them.
 promoter:
-  enabled: false
   # Empty means the release namespace.
   secretNamespace: ""
   # Between 2 and 32 unique names, each at most 253 characters.

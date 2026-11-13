@@ -73,18 +73,20 @@ func TestPatchXRRevisionUsesTheClusterClient(t *testing.T) {
 func TestPlacementFor(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		enable, remote bool
-		want           Placement
+		enable bool
+		mode   string
+		want   Placement
 	}{
-		{enable: true, want: PlacementLocal},
-		{want: PlacementNone},
-		{remote: true, want: PlacementRemote},
-		{enable: true, remote: true, want: PlacementRemote},
+		{enable: true, mode: ModeLocal, want: PlacementLocal},
+		{mode: ModeLocal, want: PlacementNone},
+		{enable: true, mode: ModeRemote, want: PlacementNone},
+		{enable: true, mode: ModeHub, want: PlacementHub},
+		{mode: ModeHub, want: PlacementHub},
 	}
 	for _, tc := range cases {
-		got := PlacementFor(tc.enable, tc.remote)
+		got := PlacementFor(tc.enable, tc.mode)
 		if got != tc.want {
-			t.Fatalf("PlacementFor(%v, %v) = %v, want %v", tc.enable, tc.remote, got, tc.want)
+			t.Fatalf("PlacementFor(%v, %s) = %v, want %v", tc.enable, tc.mode, got, tc.want)
 		}
 	}
 }

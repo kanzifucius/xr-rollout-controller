@@ -25,6 +25,27 @@ Set `spec.dryRun: true` to simulate that rollout without writing the field. See 
 
 <div markdown="1">
 
+**[Local](getting-started/local.md)**  
+Controller and XRs on one cluster.
+
+</div>
+
+<div markdown="1">
+
+**[Remote](getting-started/remote.md)**  
+Spokes roll their own XRs. This install appends Start.
+
+</div>
+
+<div markdown="1">
+
+**[Hub](getting-started/hub.md)**  
+Objects stay here. Spokes keep Crossplane and the XRs.
+
+</div>
+
+<div markdown="1">
+
 **[Install](install.md)**  
 Public GHCR image and OCI Helm chart.
 

@@ -61,8 +61,11 @@ const (
 
 // ClusterView is one cluster's CompositionRollout, as the promoter sees it.
 type ClusterView struct {
-	Engaged            bool
-	Found              bool
+	Engaged bool
+	Found   bool
+	// Name is the CompositionRollout object name when the catalog key is not
+	// that name. Empty keeps the catalog key for the Start write.
+	Name               string
 	Spec               rolloutsv1alpha1.CompositionRolloutSpec
 	State              rolloutsv1alpha1.CompositionRolloutState
 	HasState           bool

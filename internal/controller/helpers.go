@@ -273,6 +273,25 @@ func findCompositionState(status *rolloutsv1alpha1.CompositionRolloutStatus, nam
 	return &status.Rollouts[len(status.Rollouts)-1]
 }
 
+func overlapMessage(self *rolloutsv1alpha1.CompositionRollout, others []rolloutsv1alpha1.CompositionRollout, cluster string) string {
+	for i := range others {
+		other := &others[i]
+		if other.Name == self.Name {
+			continue
+		}
+		if cluster != "" && other.Spec.Cluster != cluster {
+			continue
+		}
+		if cluster != "" && other.Spec.Cluster == self.Spec.Cluster && self.Spec.Cluster != "" {
+			return "cluster " + self.Spec.Cluster + " is claimed by another CompositionRollout"
+		}
+		if name, ok := compositionNamesOverlap(self.Spec.Compositions, other.Spec.Compositions); ok {
+			return "composition " + name + " is claimed by another CompositionRollout"
+		}
+	}
+	return ""
+}
+
 func compositionNamesOverlap(a, b []rolloutsv1alpha1.CompositionTarget) (string, bool) {
 	set := map[string]struct{}{}
 	for i := range a {
