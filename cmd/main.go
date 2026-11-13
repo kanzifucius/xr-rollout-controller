@@ -97,10 +97,13 @@ func main() {
 	flag.StringVar(&environment, "environment", "dev", "Deployment environment name for promotion policy lookup.")
 	flag.BoolVar(&forceOwnership, "force-ownership", false, "Force field ownership on server-side apply patches to XRs.")
 	flag.BoolVar(&metricsAggregateOnly, "metrics-aggregate-only", false, "Drop per-composition metric labels.")
-	flag.BoolVar(&enableRollout, "enable-rollout", true, "Run the per-cluster CompositionRollout controller. Ignored when --mode is remote or hub.")
+	flag.BoolVar(&enableRollout, "enable-rollout", true,
+		"Run the per-cluster CompositionRollout controller. Ignored when --mode is remote or hub.")
 	var mode string
 	flag.StringVar(&mode, "mode", controller.ModeLocal,
-		"Where CompositionRollout lives: local, remote, or hub. local is this cluster. remote appends Start and leaves a controller on every cluster. hub keeps the object and status here and patches spoke compositionRevisionRef.")
+		"Where CompositionRollout lives: local, remote, or hub. "+
+			"local is this cluster. remote appends Start and leaves a controller on every cluster. "+
+			"hub keeps the object and status here and patches spoke compositionRevisionRef.")
 	flag.BoolVar(&promoterEnabled, "promoter", false,
 		"Append Start on the next cluster after the previous one completes a revision.")
 	flag.StringVar(&promoterSecretNamespace, "promoter-secret-namespace", "",

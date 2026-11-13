@@ -27,6 +27,13 @@ import (
 	rolloutsv1alpha1 "github.com/kanzifucius/xr-rollout-controller/api/v1alpha1"
 )
 
+const (
+	fromCluster = "dev"
+	toCluster   = "acc"
+	fromObject  = "payments-dev"
+	toObject    = "payments-acc"
+)
+
 type recordingWriter struct {
 	rollout string
 }
@@ -39,11 +46,11 @@ func (w *recordingWriter) AppendStart(_ context.Context, _ client.Client, rollou
 func TestHubStartTargetsTheDestinationObject(t *testing.T) {
 	t.Parallel()
 	from := completedFrom(rolloutsv1alpha1.PhaseCompleted)
-	from.Name = "payments-dev"
+	from.Name = fromObject
 	to := readyTo(false)
-	to.Name = "payments-acc"
+	to.Name = toObject
 	writer := &recordingWriter{}
-	pipeline := gatePipeline([]rolloutsv1alpha1.PromotionCluster{{Name: "dev"}, {Name: "acc"}}, nil)
+	pipeline := gatePipeline([]rolloutsv1alpha1.PromotionCluster{{Name: fromCluster}, {Name: toCluster}}, nil)
 	ctx := withHopSource(context.Background(), hopSource{
 		rollouts:     []string{""},
 		compositions: map[string][]string{"": {testComposition}},
@@ -53,9 +60,9 @@ func TestHubStartTargetsTheDestinationObject(t *testing.T) {
 			return ClusterView{Engaged: true}, nil
 		}
 		switch clusterName {
-		case "dev":
+		case fromCluster:
 			return from, nil
-		case "acc":
+		case toCluster:
 			return to, nil
 		default:
 			return ClusterView{Engaged: true}, nil
@@ -67,10 +74,10 @@ func TestHubStartTargetsTheDestinationObject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	if writer.rollout != "payments-acc" {
+	if writer.rollout != toObject {
 		t.Fatalf("start target = %s", writer.rollout)
 	}
-	if len(hops) != 1 || hops[0].Rollout != "payments-acc" {
+	if len(hops) != 1 || hops[0].Rollout != toObject {
 		t.Fatalf("hops = %#v", hops)
 	}
 }
@@ -82,23 +89,23 @@ func TestHubRolloutForCluster(t *testing.T) {
 		t.Fatalf("scheme: %v", err)
 	}
 	dev := &rolloutsv1alpha1.CompositionRollout{}
-	dev.Name = "payments-dev"
-	dev.Spec.Cluster = "dev"
+	dev.Name = fromObject
+	dev.Spec.Cluster = fromCluster
 	acc := &rolloutsv1alpha1.CompositionRollout{}
-	acc.Name = "payments-acc"
-	acc.Spec.Cluster = "acc"
+	acc.Name = toObject
+	acc.Spec.Cluster = toCluster
 	cl := fake.NewClientBuilder().WithScheme(scheme).WithObjects(dev, acc).Build()
-	got, err := hubRolloutForCluster(context.Background(), cl, "acc")
+	got, err := hubRolloutForCluster(context.Background(), cl, toCluster)
 	if err != nil {
 		t.Fatalf("lookup: %v", err)
 	}
-	if got == nil || got.Name != "payments-acc" {
+	if got == nil || got.Name != acc.Name {
 		t.Fatalf("object = %#v", got)
 	}
 	extra := acc.DeepCopy()
 	extra.Name = "payments-acc-b"
 	cl = fake.NewClientBuilder().WithScheme(scheme).WithObjects(acc, extra).Build()
-	if _, err := hubRolloutForCluster(context.Background(), cl, "acc"); err == nil {
+	if _, err := hubRolloutForCluster(context.Background(), cl, toCluster); err == nil {
 		t.Fatal("expected two objects for one cluster to fail")
 	}
 }
