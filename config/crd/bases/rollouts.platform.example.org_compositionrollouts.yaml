@@ -20,6 +20,9 @@ spec:
     - jsonPath: .status.rollouts[0].phase
       name: Phase
       type: string
+    - jsonPath: .spec.cluster
+      name: Cluster
+      type: string
     - jsonPath: .spec.dryRun
       name: Dry-run
       type: boolean
@@ -149,6 +152,13 @@ spec:
                 required:
                 - strategy
                 type: object
+              cluster:
+                description: |-
+                  Cluster names the engaged cluster whose composite resources this object rolls.
+                  Leave it empty when the object lives on that cluster.
+                  With --mode=hub the object lives on this install and Cluster is required.
+                  One hub object names one cluster.
+                type: string
               compositions:
                 description: |-
                   Compositions governed by this rollout config. XRs are selected by

@@ -42,8 +42,8 @@ type revisionRecord struct {
 	revision int64
 }
 
-func (r *CompositionRolloutReconciler) latestCompositionRevision(ctx context.Context, compositionName string) (revisionRecord, error) {
-	ul, err := r.Dynamic.Resource(compositionRevisionGVR).List(ctx, metav1.ListOptions{
+func (r *CompositionRolloutReconciler) latestCompositionRevision(ctx context.Context, cc clusterClients, compositionName string) (revisionRecord, error) {
+	ul, err := cc.dynamic.Resource(compositionRevisionGVR).List(ctx, metav1.ListOptions{
 		LabelSelector: xp.CompositionNameLabel + "=" + compositionName,
 	})
 	if err != nil {
@@ -65,8 +65,8 @@ func (r *CompositionRolloutReconciler) latestCompositionRevision(ctx context.Con
 	return best, nil
 }
 
-func (r *CompositionRolloutReconciler) compositeTypeGVK(ctx context.Context, compositionName string) (schema.GroupVersionKind, error) {
-	comp, err := r.Dynamic.Resource(compositionGVR).Get(ctx, compositionName, metav1.GetOptions{})
+func (r *CompositionRolloutReconciler) compositeTypeGVK(ctx context.Context, cc clusterClients, compositionName string) (schema.GroupVersionKind, error) {
+	comp, err := cc.dynamic.Resource(compositionGVR).Get(ctx, compositionName, metav1.GetOptions{})
 	if err != nil {
 		return schema.GroupVersionKind{}, err
 	}
@@ -82,12 +82,12 @@ func (r *CompositionRolloutReconciler) compositeTypeGVK(ctx context.Context, com
 	return schema.GroupVersionKind{Group: gv.Group, Version: gv.Version, Kind: kind}, nil
 }
 
-func (r *CompositionRolloutReconciler) listXRs(ctx context.Context, gvk schema.GroupVersionKind) ([]unstructured.Unstructured, error) {
-	mapping, err := r.Mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+func (r *CompositionRolloutReconciler) listXRs(ctx context.Context, cc clusterClients, gvk schema.GroupVersionKind) ([]unstructured.Unstructured, error) {
+	mapping, err := cc.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
 		return nil, err
 	}
-	ul, err := r.Dynamic.Resource(mapping.Resource).List(ctx, metav1.ListOptions{})
+	ul, err := cc.dynamic.Resource(mapping.Resource).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +119,8 @@ func fleetSourceRevision(managed []unstructured.Unstructured, revByName map[stri
 	return rolloutsv1alpha1.RevisionInfo{Name: nameForNum[bestNum], Revision: bestNum}
 }
 
-func buildRevisionMap(ctx context.Context, r *CompositionRolloutReconciler, compositionName string) (map[string]int64, error) {
-	ul, err := r.Dynamic.Resource(compositionRevisionGVR).List(ctx, metav1.ListOptions{
+func buildRevisionMap(ctx context.Context, cc clusterClients, compositionName string) (map[string]int64, error) {
+	ul, err := cc.dynamic.Resource(compositionRevisionGVR).List(ctx, metav1.ListOptions{
 		LabelSelector: xp.CompositionNameLabel + "=" + compositionName,
 	})
 	if err != nil {

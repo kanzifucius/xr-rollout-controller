@@ -105,12 +105,17 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Getting started:
+      - Local: getting-started/local.md
+      - Remote: getting-started/remote.md
+      - Hub: getting-started/hub.md
   - Install: install.md
   - CompositionRollout:
       - The CRD: crd.md
       - Canary and promotion: canary.md
       - Environment gate: environment.md
       - Promotion across clusters: promotion.md
+      - Hub: hub.md
       - Triggers: triggers.md
       - Dry run: dry-run.md
   - Architecture:

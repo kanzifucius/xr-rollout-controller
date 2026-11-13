@@ -110,16 +110,22 @@ func init() {
 	)
 }
 
-func labels(rollout, composition string, aggregateOnly bool) (rolloutLabel, compositionLabel string) {
-	if aggregateOnly {
-		return aggregateAll, aggregateAll
+func labels(clusterName, rollout, composition string, aggregateOnly bool) (rolloutLabel, compositionLabel string) {
+	if clusterName == "" {
+		if aggregateOnly {
+			return aggregateAll, aggregateAll
+		}
+		return rollout, composition
 	}
-	return rollout, composition
+	if aggregateOnly {
+		return clusterName + "/" + aggregateAll, aggregateAll
+	}
+	return clusterName + "/" + rollout, composition
 }
 
 // SetPhase records the active phase gauge (exactly one phase label set to 1).
-func SetPhase(rollout, composition string, phase rolloutsv1alpha1.RolloutPhase, aggregateOnly bool) {
-	r, c := labels(rollout, composition, aggregateOnly)
+func SetPhase(clusterName, rollout, composition string, phase rolloutsv1alpha1.RolloutPhase, aggregateOnly bool) {
+	r, c := labels(clusterName, rollout, composition, aggregateOnly)
 	phases := []rolloutsv1alpha1.RolloutPhase{
 		rolloutsv1alpha1.PhaseIdle,
 		rolloutsv1alpha1.PhaseCanarying,
@@ -140,8 +146,8 @@ func SetPhase(rollout, composition string, phase rolloutsv1alpha1.RolloutPhase, 
 }
 
 // SetXRCounts updates fleet accounting gauges.
-func SetXRCounts(rollout, composition string, managed, updated, healthy, unmanaged int32, aggregateOnly bool) {
-	r, c := labels(rollout, composition, aggregateOnly)
+func SetXRCounts(clusterName, rollout, composition string, managed, updated, healthy, unmanaged int32, aggregateOnly bool) {
+	r, c := labels(clusterName, rollout, composition, aggregateOnly)
 	rolloutXRs.WithLabelValues(r, c, StateManaged).Set(float64(managed))
 	rolloutXRs.WithLabelValues(r, c, StateUpdated).Set(float64(updated))
 	rolloutXRs.WithLabelValues(r, c, StateHealthy).Set(float64(healthy))
@@ -149,26 +155,26 @@ func SetXRCounts(rollout, composition string, managed, updated, healthy, unmanag
 }
 
 // SetCanaryUnhealthy sets the canary unhealthy gauge.
-func SetCanaryUnhealthy(rollout, composition string, count int32, aggregateOnly bool) {
-	r, c := labels(rollout, composition, aggregateOnly)
+func SetCanaryUnhealthy(clusterName, rollout, composition string, count int32, aggregateOnly bool) {
+	r, c := labels(clusterName, rollout, composition, aggregateOnly)
 	canaryUnhealthy.WithLabelValues(r, c).Set(float64(count))
 }
 
 // IncUpdates increments patch attempt counter.
-func IncUpdates(rollout, composition string, aggregateOnly bool) {
-	r, c := labels(rollout, composition, aggregateOnly)
+func IncUpdates(clusterName, rollout, composition string, aggregateOnly bool) {
+	r, c := labels(clusterName, rollout, composition, aggregateOnly)
 	updatesTotal.WithLabelValues(r, c).Inc()
 }
 
 // IncUpdateErrors increments patch failure counter.
-func IncUpdateErrors(rollout, composition string, aggregateOnly bool) {
-	r, c := labels(rollout, composition, aggregateOnly)
+func IncUpdateErrors(clusterName, rollout, composition string, aggregateOnly bool) {
+	r, c := labels(clusterName, rollout, composition, aggregateOnly)
 	updateErrorsTotal.WithLabelValues(r, c).Inc()
 }
 
 // IncPause increments pause counter when a rollout enters Paused.
-func IncPause(rollout, composition, reason string, aggregateOnly bool) {
-	r, c := labels(rollout, composition, aggregateOnly)
+func IncPause(clusterName, rollout, composition, reason string, aggregateOnly bool) {
+	r, c := labels(clusterName, rollout, composition, aggregateOnly)
 	pausesTotal.WithLabelValues(r, c, reason).Inc()
 }
 

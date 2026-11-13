@@ -41,26 +41,27 @@ type compositionReconcileResult struct {
 
 func (r *CompositionRolloutReconciler) reconcileComposition(
 	ctx context.Context,
+	cc clusterClients,
 	cr *rolloutsv1alpha1.CompositionRollout,
 	target rolloutsv1alpha1.CompositionTarget,
 	state *rolloutsv1alpha1.CompositionRolloutState,
 ) (compositionReconcileResult, error) {
 	res := compositionReconcileResult{requeueAfter: periodicRequeue}
 
-	latest, err := r.latestCompositionRevision(ctx, target.Name)
+	latest, err := r.latestCompositionRevision(ctx, cc, target.Name)
 	if err != nil {
 		return res, nil
 	}
 
-	gvk, err := r.compositeTypeGVK(ctx, target.Name)
+	gvk, err := r.compositeTypeGVK(ctx, cc, target.Name)
 	if err != nil {
 		return res, err
 	}
-	if err := r.ensureXRWatch(gvk); err != nil {
+	if err := r.ensureXRWatch(cc, gvk); err != nil {
 		return res, err
 	}
 
-	xrs, err := r.listXRs(ctx, gvk)
+	xrs, err := r.listXRs(ctx, cc, gvk)
 	if err != nil {
 		return res, err
 	}
@@ -78,7 +79,7 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 	}
 	state.HealthyXRs = healthyCount
 
-	metrics.SetXRCounts(cr.Name, target.Name, int32(len(managed)), state.UpdatedXRs, state.HealthyXRs, state.UnmanagedXRs, r.MetricsAggregateOnly)
+	metrics.SetXRCounts(cc.cluster, cr.Name, target.Name, int32(len(managed)), state.UpdatedXRs, state.HealthyXRs, state.UnmanagedXRs, r.MetricsAggregateOnly)
 
 	trigger := rollout.FindPendingTrigger(cr.Spec.Triggers, state.AcknowledgedTriggers, target.Name)
 
@@ -87,16 +88,16 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 		if state.PauseReason == nil || state.PauseReason.Reason != rolloutsv1alpha1.PauseReasonSuspended {
 			state.PauseReason = &rolloutsv1alpha1.PauseReason{Reason: rolloutsv1alpha1.PauseReasonSuspended, Message: "spec.suspend is true"}
 		}
-		metrics.SetPhase(cr.Name, target.Name, state.Phase, r.MetricsAggregateOnly)
+		metrics.SetPhase(cc.cluster, cr.Name, target.Name, state.Phase, r.MetricsAggregateOnly)
 		return res, nil
 	}
 
-	if settleDryRun(r.Environment, cr, state) {
-		metrics.SetPhase(cr.Name, target.Name, state.Phase, r.MetricsAggregateOnly)
+	if settleDryRun(cc.environment, cr, state) {
+		metrics.SetPhase(cc.cluster, cr.Name, target.Name, state.Phase, r.MetricsAggregateOnly)
 		return res, nil
 	}
 
-	targetMissing, err := targetRevisionMissing(ctx, r, target.Name, state)
+	targetMissing, err := targetRevisionMissing(ctx, cc, target.Name, state)
 	if err != nil {
 		return res, err
 	}
@@ -106,7 +107,7 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 		Suspend:               cr.Spec.Suspend,
 		AutoStart:             cr.Spec.AutoStartEnabled(),
 		OnNewRevision:         cr.Spec.OnNewRevision,
-		PromotionPolicy:       cr.Spec.Promotion.PromotionPolicyFor(r.Environment),
+		PromotionPolicy:       cr.Spec.Promotion.PromotionPolicyFor(cc.environment),
 		LatestRevisionName:    latest.name,
 		LatestRevisionNumber:  latest.revision,
 		TargetRevisionName:    state.TargetRevision.Name,
@@ -127,12 +128,12 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 
 	out := rollout.Transition(in)
 
-	if err := r.applyTransition(ctx, cr, target, state, out, trigger, managed, pending, latest); err != nil {
+	if err := r.applyTransition(ctx, cc, cr, target, state, out, trigger, managed, pending, latest); err != nil {
 		return res, err
 	}
 
-	metrics.SetPhase(cr.Name, target.Name, state.Phase, r.MetricsAggregateOnly)
-	metrics.SetCanaryUnhealthy(cr.Name, target.Name, state.Canary.Unhealthy, r.MetricsAggregateOnly)
+	metrics.SetPhase(cc.cluster, cr.Name, target.Name, state.Phase, r.MetricsAggregateOnly)
+	metrics.SetCanaryUnhealthy(cc.cluster, cr.Name, target.Name, state.Canary.Unhealthy, r.MetricsAggregateOnly)
 
 	res.requeueAfter = r.timingRequeue(state)
 	return res, nil
@@ -140,6 +141,7 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 
 func (r *CompositionRolloutReconciler) applyTransition(
 	ctx context.Context,
+	cc clusterClients,
 	cr *rolloutsv1alpha1.CompositionRollout,
 	target rolloutsv1alpha1.CompositionTarget,
 	state *rolloutsv1alpha1.CompositionRolloutState,
@@ -154,8 +156,8 @@ func (r *CompositionRolloutReconciler) applyTransition(
 	state.Phase = out.Phase
 	if out.PauseReason != nil {
 		if state.Phase == rolloutsv1alpha1.PhasePaused && prevPhase != rolloutsv1alpha1.PhasePaused {
-			metrics.IncPause(cr.Name, target.Name, out.PauseReason.Reason, r.MetricsAggregateOnly)
-			r.Recorder.Eventf(cr, "Warning", "RolloutPaused", "composition %s paused: %s", target.Name, out.PauseReason.Message)
+			metrics.IncPause(cc.cluster, cr.Name, target.Name, out.PauseReason.Reason, r.MetricsAggregateOnly)
+			cc.recorder.Eventf(cr, "Warning", "RolloutPaused", "composition %s paused: %s", target.Name, out.PauseReason.Message)
 		}
 		state.PauseReason = out.PauseReason
 	} else if state.Phase != rolloutsv1alpha1.PhasePaused {
@@ -168,12 +170,12 @@ func (r *CompositionRolloutReconciler) applyTransition(
 	}
 	if out.MarkAborted {
 		state.AbortedRevision = state.TargetRevision.Name
-		r.Recorder.Eventf(cr, "Normal", "RolloutAborted", "composition %s rollout aborted", target.Name)
+		cc.recorder.Eventf(cr, "Normal", "RolloutAborted", "composition %s rollout aborted", target.Name)
 	}
 	if out.MarkCompleted {
 		now := metav1.Now()
 		state.CompletedAt = &now
-		r.Recorder.Eventf(cr, "Normal", "RolloutCompleted", "composition %s rollout completed", target.Name)
+		cc.recorder.Eventf(cr, "Normal", "RolloutCompleted", "composition %s rollout completed", target.Name)
 	}
 	if dryCompleted {
 		if state.DryRun == nil {
@@ -182,14 +184,14 @@ func (r *CompositionRolloutReconciler) applyTransition(
 		now := metav1.Now()
 		state.DryRun.CompletedAt = &now
 		state.DryRun.Active = true
-		state.DryRun.Promotion = cr.Spec.Promotion.PromotionPolicyFor(r.Environment)
+		state.DryRun.Promotion = cr.Spec.Promotion.PromotionPolicyFor(cc.environment)
 	}
 	if out.Supersede {
-		r.Recorder.Eventf(cr, "Normal", "RolloutSuperseded", "composition %s superseded by newer revision", target.Name)
+		cc.recorder.Eventf(cr, "Normal", "RolloutSuperseded", "composition %s superseded by newer revision", target.Name)
 	}
 
 	if out.StartRollout {
-		revMap, err := buildRevisionMap(ctx, r, target.Name)
+		revMap, err := buildRevisionMap(ctx, cc, target.Name)
 		if err != nil {
 			return err
 		}
@@ -202,25 +204,25 @@ func (r *CompositionRolloutReconciler) applyTransition(
 		state.SoakEndsAt = nil
 		state.Wave = rolloutsv1alpha1.WaveStatus{}
 		if cr.Spec.DryRunEnabled() {
-			state.DryRun = rollout.ResetSimulationLog(state.DryRun, cr.Spec.Promotion.PromotionPolicyFor(r.Environment))
+			state.DryRun = rollout.ResetSimulationLog(state.DryRun, cr.Spec.Promotion.PromotionPolicyFor(cc.environment))
 		}
-		if err := r.startCanaries(cr, target, state, managed); err != nil {
+		if err := r.startCanaries(ctx, cc, cr, target, state, managed); err != nil {
 			return err
 		}
-		r.Recorder.Eventf(cr, "Normal", "RolloutStarted", "composition %s rollout started for revision %s", target.Name, latest.name)
+		cc.recorder.Eventf(cr, "Normal", "RolloutStarted", "composition %s rollout started for revision %s", target.Name, latest.name)
 	}
 
 	if out.EnterSoak {
 		now := metav1.Now()
 		soakEnd := metav1.NewTime(now.Add(cr.Spec.Soak.Duration.Duration))
 		state.SoakEndsAt = &soakEnd
-		r.Recorder.Eventf(cr, "Normal", "SoakStarted", "composition %s soak until %s", target.Name, soakEnd.Format(time.RFC3339))
+		cc.recorder.Eventf(cr, "Normal", "SoakStarted", "composition %s soak until %s", target.Name, soakEnd.Format(time.RFC3339))
 	}
 
 	if out.EnterPromoting {
 		remainder := simulatedPending(pending, state.Simulation(), latest.name, cr.Spec.DryRunEnabled())
 		state.Wave = rolloutsv1alpha1.WaveStatus{Current: 0, Total: r.waveTotal(len(remainder), cr.Spec.Waves.BatchSize)}
-		r.Recorder.Eventf(cr, "Normal", "Approved", "composition %s entering promotion", target.Name)
+		cc.recorder.Eventf(cr, "Normal", "Approved", "composition %s entering promotion", target.Name)
 	}
 
 	if out.AcknowledgeTrigger && trigger != nil {
@@ -235,19 +237,19 @@ func (r *CompositionRolloutReconciler) applyTransition(
 		}
 		state.AcknowledgedTriggers = append(state.AcknowledgedTriggers, ack)
 		if out.TriggerOutcome == rollout.TriggerOutcomeStale {
-			r.Recorder.Event(cr, "Warning", "TriggerIgnored", fmt.Sprintf("stale trigger for composition %s", target.Name))
+			cc.recorder.Event(cr, "Warning", "TriggerIgnored", fmt.Sprintf("stale trigger for composition %s", target.Name))
 		}
 	}
 
 	switch state.Phase {
 	case rolloutsv1alpha1.PhaseCanarying:
-		return r.patchCanaries(ctx, cr, target, state, managed, latest.name)
+		return r.patchCanaries(ctx, cc, cr, target, state, managed, latest.name)
 	case rolloutsv1alpha1.PhasePromoting:
 		wavePending := pending
 		if cr.Spec.DryRunEnabled() {
 			wavePending = simulatedPending(pending, state.Simulation(), latest.name, true)
 		}
-		return r.promoteWave(ctx, cr, target, state, wavePending, latest.name)
+		return r.promoteWave(ctx, cc, cr, target, state, wavePending, latest.name)
 	case rolloutsv1alpha1.PhaseIdle,
 		rolloutsv1alpha1.PhaseSoaking,
 		rolloutsv1alpha1.PhaseAwaitingApproval,
@@ -301,6 +303,8 @@ func partitionFleet(
 }
 
 func (r *CompositionRolloutReconciler) startCanaries(
+	_ context.Context,
+	cc clusterClients,
 	cr *rolloutsv1alpha1.CompositionRollout,
 	target rolloutsv1alpha1.CompositionTarget,
 	state *rolloutsv1alpha1.CompositionRolloutState,
@@ -347,7 +351,7 @@ func (r *CompositionRolloutReconciler) startCanaries(
 			Reason:  rolloutsv1alpha1.PauseReasonCanarySetEmpty,
 			Message: "no XRs matched canary selection",
 		}
-		metrics.IncPause(cr.Name, target.Name, rolloutsv1alpha1.PauseReasonCanarySetEmpty, r.MetricsAggregateOnly)
+		metrics.IncPause(cc.cluster, cr.Name, target.Name, rolloutsv1alpha1.PauseReasonCanarySetEmpty, r.MetricsAggregateOnly)
 		return nil
 	}
 
@@ -356,12 +360,13 @@ func (r *CompositionRolloutReconciler) startCanaries(
 		refs = append(refs, rolloutsv1alpha1.XRRef{Namespace: selected[i].Namespace, Name: selected[i].Name})
 	}
 	state.Canary = rolloutsv1alpha1.CanaryStatus{Selected: refs}
-	r.Recorder.Eventf(cr, "Normal", "CanarySelected", "composition %s selected %d canaries", target.Name, len(refs))
+	cc.recorder.Eventf(cr, "Normal", "CanarySelected", "composition %s selected %d canaries", target.Name, len(refs))
 	return nil
 }
 
 func (r *CompositionRolloutReconciler) patchCanaries(
 	ctx context.Context,
+	cc clusterClients,
 	cr *rolloutsv1alpha1.CompositionRollout,
 	target rolloutsv1alpha1.CompositionTarget,
 	state *rolloutsv1alpha1.CompositionRolloutState,
@@ -388,33 +393,34 @@ func (r *CompositionRolloutReconciler) patchCanaries(
 			continue
 		}
 		added, err := applyRevision(cr.Spec.DryRunEnabled(), state, ref, revName, rolloutsv1alpha1.DryRunStageCanary, 0, func() error {
-			return r.patchXRRevision(ctx, u, revName)
+			return r.patchXRRevision(ctx, cc, u, revName)
 		})
 		if err != nil {
-			metrics.IncUpdateErrors(cr.Name, target.Name, r.MetricsAggregateOnly)
+			metrics.IncUpdateErrors(cc.cluster, cr.Name, target.Name, r.MetricsAggregateOnly)
 			state.Phase = rolloutsv1alpha1.PhasePaused
 			state.PhaseBeforePause = rolloutsv1alpha1.PhaseCanarying
 			state.PauseReason = &rolloutsv1alpha1.PauseReason{
 				Reason:  rolloutsv1alpha1.PauseReasonPatchFailed,
 				Message: err.Error(),
 			}
-			metrics.IncPause(cr.Name, target.Name, rolloutsv1alpha1.PauseReasonPatchFailed, r.MetricsAggregateOnly)
-			r.Recorder.Eventf(cr, "Warning", "RolloutPaused", "composition %s paused: %s", target.Name, err.Error())
+			metrics.IncPause(cc.cluster, cr.Name, target.Name, rolloutsv1alpha1.PauseReasonPatchFailed, r.MetricsAggregateOnly)
+			cc.recorder.Eventf(cr, "Warning", "RolloutPaused", "composition %s paused: %s", target.Name, err.Error())
 			return nil
 		}
 		if cr.Spec.DryRunEnabled() {
 			if added {
-				r.Recorder.Eventf(cr, "Normal", "DryRun", "composition %s would set %s compositionRevisionRef to %s", target.Name, ref.String(), revName)
+				cc.recorder.Eventf(cr, "Normal", "DryRun", "composition %s would set %s compositionRevisionRef to %s", target.Name, ref.String(), revName)
 			}
 			continue
 		}
-		metrics.IncUpdates(cr.Name, target.Name, r.MetricsAggregateOnly)
+		metrics.IncUpdates(cc.cluster, cr.Name, target.Name, r.MetricsAggregateOnly)
 	}
 	return nil
 }
 
 func (r *CompositionRolloutReconciler) promoteWave(
 	ctx context.Context,
+	cc clusterClients,
 	cr *rolloutsv1alpha1.CompositionRollout,
 	target rolloutsv1alpha1.CompositionTarget,
 	state *rolloutsv1alpha1.CompositionRolloutState,
@@ -462,7 +468,7 @@ func (r *CompositionRolloutReconciler) promoteWave(
 				return err
 			}
 			if added {
-				r.Recorder.Eventf(cr, "Normal", "DryRun", "composition %s would set %s compositionRevisionRef to %s", target.Name, ref.String(), revName)
+				cc.recorder.Eventf(cr, "Normal", "DryRun", "composition %s would set %s compositionRevisionRef to %s", target.Name, ref.String(), revName)
 			}
 		}
 	} else {
@@ -482,19 +488,19 @@ func (r *CompositionRolloutReconciler) promoteWave(
 				ref := rolloutsv1alpha1.XRRef{Namespace: c.Namespace, Name: c.Name}
 				waveNo := state.Wave.Current + 1
 				added, err := applyRevision(false, state, ref, revName, rolloutsv1alpha1.DryRunStageWave, waveNo, func() error {
-					return r.patchXRRevision(egCtx, u, revName)
+					return r.patchXRRevision(egCtx, cc, u, revName)
 				})
 				if err != nil {
-					metrics.IncUpdateErrors(cr.Name, target.Name, r.MetricsAggregateOnly)
+					metrics.IncUpdateErrors(cc.cluster, cr.Name, target.Name, r.MetricsAggregateOnly)
 					return err
 				}
 				if cr.Spec.DryRunEnabled() {
 					if added {
-						r.Recorder.Eventf(cr, "Normal", "DryRun", "composition %s would set %s compositionRevisionRef to %s", target.Name, ref.String(), revName)
+						cc.recorder.Eventf(cr, "Normal", "DryRun", "composition %s would set %s compositionRevisionRef to %s", target.Name, ref.String(), revName)
 					}
 					return nil
 				}
-				metrics.IncUpdates(cr.Name, target.Name, r.MetricsAggregateOnly)
+				metrics.IncUpdates(cc.cluster, cr.Name, target.Name, r.MetricsAggregateOnly)
 				return nil
 			})
 		}
@@ -515,7 +521,7 @@ func (r *CompositionRolloutReconciler) promoteWave(
 	now := metav1.Now()
 	end := metav1.NewTime(now.Add(cr.Spec.Waves.WaveSoak.Duration))
 	state.Wave.WaveEndsAt = &end
-	r.Recorder.Eventf(cr, "Normal", "WaveStarted", "composition %s wave %d", target.Name, state.Wave.Current)
+	cc.recorder.Eventf(cr, "Normal", "WaveStarted", "composition %s wave %d", target.Name, state.Wave.Current)
 	return nil
 }
 

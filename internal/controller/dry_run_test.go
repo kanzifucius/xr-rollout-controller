@@ -98,7 +98,7 @@ func TestPatchCanariesDryRunLeavesTheXRUntouched(t *testing.T) {
 	_ = unstructured.SetNestedField(xr.Object, "Manual", "spec", "crossplane", "compositionUpdatePolicy")
 
 	managed := []unstructured.Unstructured{*xr}
-	err := r.patchCanaries(context.Background(), cr, rolloutsv1alpha1.CompositionTarget{Name: "platformdb.example.org"}, state, managed, "rev-new")
+	err := r.patchCanaries(context.Background(), localClients(r), cr, rolloutsv1alpha1.CompositionTarget{Name: "platformdb.example.org"}, state, managed, "rev-new")
 	if err != nil {
 		t.Fatalf("patchCanaries: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestApplyTransitionDryRunCompletionDoesNotPublishCompleted(t *testing.T) {
 		DryRun:         &rolloutsv1alpha1.DryRunStatus{Active: true},
 	}
 	out := rollout.Output{Phase: rolloutsv1alpha1.PhaseCompleted, MarkCompleted: true}
-	err := r.applyTransition(context.Background(), cr, rolloutsv1alpha1.CompositionTarget{Name: "platformdb.example.org"}, state, out, nil, nil, nil, revisionRecord{name: "rev-9", revision: 9})
+	err := r.applyTransition(context.Background(), localClients(r), cr, rolloutsv1alpha1.CompositionTarget{Name: "platformdb.example.org"}, state, out, nil, nil, nil, revisionRecord{name: "rev-9", revision: 9})
 	if err != nil {
 		t.Fatalf("applyTransition: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestAbortKeepsTheDryRunLogAndDoesNotNeedAClient(t *testing.T) {
 		AcknowledgeTrigger: true,
 		TriggerOutcome:     rollout.TriggerOutcomeApplied,
 	}
-	err := r.applyTransition(context.Background(), cr, rolloutsv1alpha1.CompositionTarget{Name: "platformdb.example.org"}, state, out, trigger, nil, nil, revisionRecord{})
+	err := r.applyTransition(context.Background(), localClients(r), cr, rolloutsv1alpha1.CompositionTarget{Name: "platformdb.example.org"}, state, out, trigger, nil, nil, revisionRecord{})
 	if err != nil {
 		t.Fatalf("applyTransition: %v", err)
 	}

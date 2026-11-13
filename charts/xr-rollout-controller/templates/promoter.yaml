@@ -1,10 +1,9 @@
-{{- if .Values.promoter.enabled }}
-{{- if lt (len .Values.promoter.clusters) 2 }}
-{{- fail "promoter.clusters must name at least two clusters" }}
-{{- end }}
+{{- $mode := .Values.mode | default "local" }}
+{{- if or (eq $mode "remote") (eq $mode "hub") }}
 {{/*
 Kubeconfig Secrets are not created by this chart. Create one per cluster.
-The Secret name is the cluster name.
+The Secret name is the cluster name. The annotation is the promotion
+environment, and the two strings are not the same thing.
 
 apiVersion: v1
 kind: Secret
@@ -13,11 +12,26 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     sigs.k8s.io/multicluster-runtime-kubeconfig: "true"
+  annotations:
+    rollouts.platform.example.org/environment: dev
 type: Opaque
 data:
   kubeconfig: <base64 kubeconfig>
 
-Repeat for test, acc, and prod.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: acc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    sigs.k8s.io/multicluster-runtime-kubeconfig: "true"
+  annotations:
+    rollouts.platform.example.org/environment: acceptance
+type: Opaque
+data:
+  kubeconfig: <base64 kubeconfig>
+
+Repeat for test and prod.
 */}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -51,6 +65,9 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "xr-rollout-controller.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+{{- if lt (len .Values.promoter.clusters) 2 }}
+{{- fail "promoter.clusters must name at least two clusters" }}
+{{- end }}
 ---
 apiVersion: rollouts.platform.example.org/v1alpha1
 kind: PromotionPipeline

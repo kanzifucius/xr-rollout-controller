@@ -23,6 +23,8 @@ promotion:
 
 A cluster installed with `--set environment=prod` waits. A cluster installed with `--set environment=dev` promotes on its own. The manifest does not change.
 
+In local mode the pod flag is the key. In remote and hub mode it is not read for engaged clusters. The kubeconfig Secret annotation `rollouts.platform.example.org/environment` is the key. See [Remote](getting-started/remote.md) and [Hub](getting-started/hub.md).
+
 `AwaitingApproval` is also a status condition on the `CompositionRollout`, so a release process can watch one object instead of the whole fleet.
 
 The approval itself is a `spec.triggers` entry, not an annotation. See [Triggers](triggers.md).

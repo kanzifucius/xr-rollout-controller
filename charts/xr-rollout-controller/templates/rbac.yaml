@@ -56,7 +56,8 @@ rules:
       - get
       - patch
       - update
-  {{- if .Values.rollout.enabled }}
+  {{- $mode := .Values.mode | default "local" }}
+  {{- if or (eq $mode "local") (eq $mode "hub") }}
   - apiGroups:
       - rollouts.platform.example.org
     resources:
@@ -81,6 +82,7 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "xr-rollout-controller.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+{{- if eq (.Values.mode | default "local") "local" }}
 ---
 {{/* aggregationRule is a top-level ClusterRole field. Do not nest it under metadata. */}}
 apiVersion: rbac.authorization.k8s.io/v1
@@ -109,6 +111,7 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "xr-rollout-controller.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+{{- end }}
 {{- if .Values.leaderElection.enabled }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

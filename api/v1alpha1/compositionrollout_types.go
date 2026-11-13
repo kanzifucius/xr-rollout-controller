@@ -98,6 +98,13 @@ type CompositionRolloutSpec struct {
 	// +kubebuilder:validation:MinItems=1
 	Compositions []CompositionTarget `json:"compositions"`
 
+	// Cluster names the engaged cluster whose composite resources this object rolls.
+	// Leave it empty when the object lives on that cluster.
+	// With --mode=hub the object lives on this install and Cluster is required.
+	// One hub object names one cluster.
+	// +optional
+	Cluster string `json:"cluster,omitempty"`
+
 	// Suspend stops the controller acting on new revisions (and pauses any
 	// in-flight rollout) without deleting state.
 	// +optional
@@ -423,6 +430,7 @@ type AcknowledgedTrigger struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster,shortName=xrollout
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.rollouts[0].phase`
+// +kubebuilder:printcolumn:name="Cluster",type=string,JSONPath=`.spec.cluster`
 // +kubebuilder:printcolumn:name="Dry-run",type=boolean,JSONPath=`.spec.dryRun`
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 

@@ -50,11 +50,12 @@ spec:
             {{- if .Values.metricsAggregateOnly }}
             - --metrics-aggregate-only
             {{- end }}
-            {{- if not .Values.rollout.enabled }}
-            - --enable-rollout=false
+            {{- $mode := .Values.mode | default "local" }}
+            {{- if not (or (eq $mode "local") (eq $mode "remote") (eq $mode "hub")) }}
+            {{- fail "mode must be local, remote, or hub" }}
             {{- end }}
-            {{- if .Values.promoter.enabled }}
-            - --promoter
+            - {{ printf "--mode=%s" $mode | quote }}
+            {{- if or (eq $mode "remote") (eq $mode "hub") }}
             - {{ printf "--promoter-secret-namespace=%s" (default .Release.Namespace .Values.promoter.secretNamespace) | quote }}
             {{- end }}
           image: {{ include "xr-rollout-controller.image" . | quote }}
