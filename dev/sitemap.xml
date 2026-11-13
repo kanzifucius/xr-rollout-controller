@@ -2,58 +2,58 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/canary/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/contributing/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/crd/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/dry-run/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/environment/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/install/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/promotion/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/releases/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/triggers/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/architecture/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/architecture/runtime/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/architecture/sequence/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/architecture/workflow/</loc>
-         <lastmod>2026-11-12</lastmod>
+         <lastmod>2026-11-13</lastmod>
     </url>
 </urlset>

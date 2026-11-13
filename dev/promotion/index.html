@@ -636,6 +636,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Promotion across clusters
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -652,6 +670,108 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#optional-hop-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional hop rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Optional hop rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approval
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#revision-match" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Revision match
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soak-between-clusters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soak between clusters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#partial-fleets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Partial fleets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#skip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skip
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dry-run-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dry-run chain
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -959,6 +1079,97 @@
     
   
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#optional-hop-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional hop rules
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Optional hop rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#approval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Approval
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#revision-match" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Revision match
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soak-between-clusters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soak between clusters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#partial-fleets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Partial fleets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#skip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skip
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dry-run-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dry-run chain
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
 </nav>
                   </div>
                 </div>
@@ -1020,9 +1231,49 @@
 <p>The field manager is <code>xr-rollout-promoter</code>. <code>Paused</code> or <code>Aborted</code> on the lower cluster leaves the next cluster unstarted. Abort does not roll XRs back.</p>
 <p>The spoke <code>--environment</code> value is still the in-cluster policy key (<code>acceptance</code> in the samples). It is not required to equal the cluster name <code>acc</code>.</p>
 <p>Apply spoke <code>CompositionRollout</code> objects with server-side apply, so GitOps does not own the promoter's trigger key. <code>spec.triggers</code> is a map keyed by composition, action, and revision. The controller acknowledges a trigger in status. It does not delete it.</p>
-<p>A spoke <code>CompositionRollout</code> with <code>spec.dryRun: true</code> does not receive <code>Start</code>. A predecessor that is a dry run does not open the next cluster. The hop reason is <code>DryRun</code>.</p>
+<p>A spoke <code>CompositionRollout</code> with <code>spec.dryRun: true</code> does not receive <code>Start</code>. A predecessor that is a dry run does not open the next cluster. The hop reason is <code>DryRun</code>. Set <code>spec.dryRunChain: true</code> to record that <code>Start</code> on the pipeline instead. The trigger is still not written. See <a href="#optional-hop-rules">Optional hop rules</a>.</p>
 <p>On each spoke, bind the kubeconfig identity to the ClusterRole in <code>config/rbac/promoter_remote_role.yaml</code> (also packaged at <code>charts/xr-rollout-controller/files/promoter-remote-rbac.yaml</code>). Do not reuse the XR aggregation role. That remote role can read rollout status and patch <code>spec.triggers</code>. It cannot write status, and it cannot touch XRs.</p>
 <p>The management process reaches each cluster with the <a href="https://github.com/kubernetes/community/blob/main/sig-multicluster/README.md">multicluster-runtime</a> client library. Nothing else from that SIG has to be installed on the spokes.</p>
+<h2 id="optional-hop-rules">Optional hop rules<a class="headerlink" href="#optional-hop-rules" title="Permanent link">&para;</a></h2>
+<p>Leave these fields unset and the promoter writes <code>Start</code> as soon as the previous cluster has completed that revision. <code>dev</code> and <code>test</code> stay on that default. <code>acc</code> and <code>prod</code> can opt in. None of these fields patch an XR, write <code>compositionUpdatePolicy</code>, or delete a trigger.</p>
+<h3 id="approval">Approval<a class="headerlink" href="#approval" title="Permanent link">&para;</a></h3>
+<p>Set <code>approval: Approve</code> on a cluster. After the previous cluster has completed, the promoter waits until the pipeline contains an <code>Approve</code> trigger for that cluster and revision. It then writes <code>Start</code>. The trigger stays in <code>spec.triggers</code>. The promoter records it on <code>status.acknowledgedTriggers</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">clusters</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">acc</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">approval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Approve</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prod</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">      </span><span class="nt">approval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Approve</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="nt">triggers</span><span class="p">:</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">acc</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">      </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Approve</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">      </span><span class="nt">revision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">platformdb.example.org-aaa</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">      </span><span class="nt">rollout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">team-payments</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">      </span><span class="nt">composition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">platformdb.example.org</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">      </span><span class="nt">actor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">release@example.org</span>
+</code></pre></div>
+<p>An empty <code>rollout</code> or <code>composition</code> matches every rollout or composition on that cluster. This <code>Approve</code> is the cross-cluster gate. The in-cluster <code>Approve</code> still lives on the spoke <code>CompositionRollout</code>.</p>
+<h3 id="revision-match">Revision match<a class="headerlink" href="#revision-match" title="Permanent link">&para;</a></h3>
+<p>Set <code>revisionMatch: true</code> on a cluster. The hop waits while that cluster's latest <code>CompositionRevision</code> for the composition differs from the revision that completed on the previous cluster. The reason is <code>RevisionMismatch</code>. The promoter only promotes that same revision. It does not write <code>Start</code> for a different one.</p>
+<p>Unset, a different latest revision stays <code>Blocked</code> with reason <code>RevisionNotLatest</code>. That check is unchanged.</p>
+<h3 id="soak-between-clusters">Soak between clusters<a class="headerlink" href="#soak-between-clusters" title="Permanent link">&para;</a></h3>
+<p>Set <code>soak</code> on a cluster, for example <code>1h</code>. The promoter waits that long after the previous cluster's <code>completedAt</code> before it writes <code>Start</code>. The reason while it waits is <code>InterClusterSoak</code>. This clock is not the in-cluster canary soak (<code>spec.soak.duration</code> on the <code>CompositionRollout</code>).</p>
+<h3 id="partial-fleets">Partial fleets<a class="headerlink" href="#partial-fleets" title="Permanent link">&para;</a></h3>
+<p>Set <code>minCompletedPercent</code> on a cluster. Matching <code>CompositionRollout</code> objects are those on the previous cluster that govern the same composition. <code>fleetSelector</code> narrows that set by label. The hop waits until that percentage have completed the revision. The reason is <code>FleetIncomplete</code>.</p>
+<p><code>100</code> requires every matching rollout. A lower percentage writes <code>Start</code> only for the rollouts that have completed the revision, and only once the share is reached. Rollouts of other compositions are not in the percentage. Unset, each <code>CompositionRollout</code> is promoted on its own.</p>
+<h3 id="skip">Skip<a class="headerlink" href="#skip" title="Permanent link">&para;</a></h3>
+<p>Append a <code>Skip</code> trigger that names a cluster and a revision. The promoter treats that cluster as already satisfied for that revision, so the next cluster can receive <code>Start</code> without this cluster having completed. The trigger stays in spec. Skip does not patch XRs and does not roll anything back. A dry-run rollout is not skipped into a real <code>Start</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">triggers</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">cluster</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">      </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Skip</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">      </span><span class="nt">revision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">platformdb.example.org-aaa</span>
+</code></pre></div>
+<h3 id="dry-run-chain">Dry-run chain<a class="headerlink" href="#dry-run-chain" title="Permanent link">&para;</a></h3>
+<p>Set <code>spec.dryRunChain: true</code> on the pipeline. When the previous <code>CompositionRollout</code> is <code>spec.dryRun</code> and the simulation has finished (<code>status.rollouts[].dryRun.completedAt</code>), the promoter records the <code>Start</code> it would have written on <code>status.hops[].wouldStart</code>. It does not append that trigger. The reason is <code>DryRunRecorded</code>.</p>
+<p>A dry run still does not set <code>status.rollouts[].completedAt</code> or phase <code>Completed</code>, and it does not patch XRs. <code>dryRun.completedAt</code> is not a real completion. Unset, the hop stays <code>Blocked</code> with reason <code>DryRun</code>. A dry-run destination does not receive <code>Start</code> either.</p>
 
 
 

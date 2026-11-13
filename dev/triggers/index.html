@@ -1079,6 +1079,7 @@
 </tbody>
 </table>
 <p>A promoter may append <code>Start</code> for one revision. The controller still only acknowledges that entry. A <code>Stale</code> acknowledgement is not retried for that revision.</p>
+<p>Cross-cluster <code>Approve</code> and <code>Skip</code> are triggers on the <code>PromotionPipeline</code>, not on this object. The spoke controller does not consume them. See <a href="../promotion/#optional-hop-rules">Promotion across clusters</a>.</p>
 <p>A trigger that does not match the phase or revision is acknowledged with outcome <code>Stale</code> and does not change the phase. <code>autoStart</code> will not immediately start a rollout for a revision that was aborted. A later <code>Start</code> can run that revision again from <code>Canarying</code>.</p>
 <p>Abort does not revert XRs. Canaries already on the new revision stay there. The rest stay on the old one until a later rollout moves them.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">spec</span><span class="p">:</span>
