@@ -1,0 +1,57 @@
+# Bind both ClusterRoles to the user named in the spoke kubeconfig.
+# The User name xr-rollout-remote must match that kubeconfig user.
+# Do not bind these to a ServiceAccount on the spoke.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xr-rollout-remote
+rules:
+  - apiGroups: ["rollouts.platform.example.org"]
+    resources: ["compositionrollouts"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["rollouts.platform.example.org"]
+    resources: ["compositionrollouts/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["apiextensions.crossplane.io"]
+    resources: ["compositions", "compositionrevisions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xr-rollout-remote
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xr-rollout-remote
+subjects:
+  - kind: User
+    name: xr-rollout-remote
+    apiGroup: rbac.authorization.k8s.io
+---
+# aggregationRule is a top-level ClusterRole field. Do not nest it under metadata.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xr-rollout-remote-xr-access
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rollouts.platform.example.org/aggregate-to-rollout-controller: "true"
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xr-rollout-remote-xr-access
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xr-rollout-remote-xr-access
+subjects:
+  - kind: User
+    name: xr-rollout-remote
+    apiGroup: rbac.authorization.k8s.io

@@ -32,6 +32,13 @@ metricsAggregateOnly: false
 rollout:
   enabled: true
 
+# Reconcile CompositionRollout on engaged clusters from this install.
+# Requires rollout.enabled=false. Spoke pods are not installed.
+# Each kubeconfig Secret needs annotation
+# rollouts.platform.example.org/environment.
+remoteReconcile:
+  enabled: false
+
 # Cross-cluster Start promoter. Spoke installs leave this false.
 promoter:
   enabled: false

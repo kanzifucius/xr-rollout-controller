@@ -50,12 +50,21 @@ spec:
             {{- if .Values.metricsAggregateOnly }}
             - --metrics-aggregate-only
             {{- end }}
-            {{- if not .Values.rollout.enabled }}
+            {{- if and .Values.remoteReconcile.enabled .Values.rollout.enabled }}
+            {{- fail "remoteReconcile.enabled reconciles engaged clusters; set rollout.enabled=false" }}
+            {{- end }}
+            {{- if .Values.remoteReconcile.enabled }}
+            - --remote-reconcile
+            - --enable-rollout=false
+            - {{ printf "--promoter-secret-namespace=%s" (default .Release.Namespace .Values.promoter.secretNamespace) | quote }}
+            {{- else if not .Values.rollout.enabled }}
             - --enable-rollout=false
             {{- end }}
-            {{- if .Values.promoter.enabled }}
+            {{- if and .Values.promoter.enabled (not .Values.remoteReconcile.enabled) }}
             - --promoter
             - {{ printf "--promoter-secret-namespace=%s" (default .Release.Namespace .Values.promoter.secretNamespace) | quote }}
+            {{- else if and .Values.promoter.enabled .Values.remoteReconcile.enabled }}
+            - --promoter
             {{- end }}
           image: {{ include "xr-rollout-controller.image" . | quote }}
           imagePullPolicy: {{ include "xr-rollout-controller.imagePullPolicy" . }}
