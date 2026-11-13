@@ -2,6 +2,8 @@
 
 The promoter runs in the management cluster. Each spoke still runs its own rollout controller, and that controller still rolls only that cluster's composite resources (XRs). The promoter does not patch an XR. It opens the next cluster's gate by appending one `Start` trigger.
 
+The management process can also run the rollout controller for those spokes (`--remote-reconcile`). The promoter still only appends `Start`. Spoke Deployments are then uninstalled. The spoke `--environment` pod flag is replaced by the Secret annotation, and `acceptance` is still not required to equal the cluster name `acc`.
+
 One management install is given kubeconfigs for `dev`, `test`, `acc`, and `prod`. Each kubeconfig is a Secret in the release namespace:
 
 ```yaml

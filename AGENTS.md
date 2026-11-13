@@ -60,6 +60,7 @@ Switch on `RolloutPhase`, `TriggerAction`, `PromotionPolicy`, and `CanaryStrateg
 - Metrics must not use per-XR labels. `--metrics-aggregate-only` drops the composition label.
 - The promoter only appends a revision-bound `Start` on the next cluster after the previous cluster has completed that revision. It does not patch XRs, `compositionUpdatePolicy`, or `autoStart`. `Paused` and `Aborted` do not promote.
 - `spec.dryRun: true` simulates that `CompositionRollout`. It does not write `compositionRevisionRef` or `compositionUpdatePolicy`. It does not set `completedAt` or phase `Completed`. The promoter must not append `Start` because either cluster is a dry run.
+- `--remote-reconcile` defaults off. Off, the CompositionRollout reconciler stays on the local manager. On, that process reconciles each engaged cluster through that cluster's client and does not also run the local reconciler. The environment is the kubeconfig Secret annotation `rollouts.platform.example.org/environment`, not the cluster name and not the process `--environment`. The promoter still only appends `Start`.
 
 ## Helm and release
 

@@ -111,6 +111,7 @@ nav:
       - Canary and promotion: canary.md
       - Environment gate: environment.md
       - Promotion across clusters: promotion.md
+      - Remote reconcile: remote-reconcile.md
       - Triggers: triggers.md
       - Dry run: dry-run.md
   - Architecture:

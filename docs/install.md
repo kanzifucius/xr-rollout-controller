@@ -41,6 +41,7 @@ Private forks still need a token with `read:packages` and an image pull secret. 
 | `image.repository` | `ghcr.io/kanzifucius/xr-rollout-controller` | Controller image repository |
 | `image.tag` | chart `appVersion` | Image tag. Release charts set `appVersion` to the git tag, for example `v1.2.3` |
 | `environment` | `dev` | Passed as `--environment` |
+| `remoteReconcile.enabled` | `false` | Reconcile engaged clusters from this install. Requires `rollout.enabled=false`. See [Remote reconcile](remote-reconcile.md). |
 | `forceOwnership` | `false` | Force server-side apply ownership of the revision ref |
 | `metricsAggregateOnly` | `false` | Drop per-composition Prometheus labels |
 | `resources` | 10m/64Mi request, 500m/128Mi limit | Container resources |
