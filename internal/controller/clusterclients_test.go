@@ -47,7 +47,8 @@ func TestPatchXRRevisionUsesTheClusterClient(t *testing.T) {
 	u.SetKind("XDatabase")
 	u.SetNamespace("payments")
 	u.SetName("orders")
-	err := r.patchXRRevision(context.Background(), clusterClients{client: rec}, u, "rev-9")
+	const wantRevision = "rev-9"
+	err := r.patchXRRevision(context.Background(), clusterClients{client: rec}, u, wantRevision)
 	if err != nil {
 		t.Fatalf("patchXRRevision: %v", err)
 	}
@@ -58,7 +59,7 @@ func TestPatchXRRevisionUsesTheClusterClient(t *testing.T) {
 	if !ok {
 		t.Fatalf("patched type %T", rec.obj)
 	}
-	if xp.GetCompositionRevisionRef(patched) != "rev-9" {
+	if xp.GetCompositionRevisionRef(patched) != wantRevision {
 		t.Fatalf("revision = %s", xp.GetCompositionRevisionRef(patched))
 	}
 	if _, found, _ := unstructured.NestedString(patched.Object, "spec", "crossplane", "compositionUpdatePolicy"); found {
