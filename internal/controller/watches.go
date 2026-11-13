@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -58,16 +59,20 @@ func (r *CompositionRolloutReconciler) setupStaticWatches(bld *builder.Builder) 
 	comp.SetGroupVersionKind(compositionGVK)
 
 	return bld.
-		Watches(rev, handler.EnqueueRequestsFromMapFunc(r.mapCompositionRevision), builder.WithPredicates(predicate.Funcs{
+		Watches(rev, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			return r.mapCompositionRevision(ctx, localClients(r), obj)
+		}), builder.WithPredicates(predicate.Funcs{
 			CreateFunc:  func(e event.CreateEvent) bool { return true },
 			UpdateFunc:  func(e event.UpdateEvent) bool { return false },
 			DeleteFunc:  func(e event.DeleteEvent) bool { return false },
 			GenericFunc: func(e event.GenericEvent) bool { return false },
 		})).
-		Watches(comp, handler.EnqueueRequestsFromMapFunc(r.mapComposition))
+		Watches(comp, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			return r.mapComposition(ctx, localClients(r), obj)
+		}))
 }
 
-func (r *CompositionRolloutReconciler) mapCompositionRevision(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *CompositionRolloutReconciler) mapCompositionRevision(ctx context.Context, cc clusterClients, obj client.Object) []reconcile.Request {
 	u, ok := obj.(*unstructured.Unstructured)
 	if !ok {
 		return nil
@@ -76,18 +81,18 @@ func (r *CompositionRolloutReconciler) mapCompositionRevision(ctx context.Contex
 	if compName == "" {
 		return nil
 	}
-	return r.requestsForComposition(ctx, compName)
+	return r.requestsForComposition(ctx, cc, compName)
 }
 
-func (r *CompositionRolloutReconciler) mapComposition(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *CompositionRolloutReconciler) mapComposition(ctx context.Context, cc clusterClients, obj client.Object) []reconcile.Request {
 	u, ok := obj.(*unstructured.Unstructured)
 	if !ok {
 		return nil
 	}
-	return r.requestsForComposition(ctx, u.GetName())
+	return r.requestsForComposition(ctx, cc, u.GetName())
 }
 
-func (r *CompositionRolloutReconciler) mapXRToRollout(ctx context.Context, obj client.Object) []reconcile.Request {
+func (r *CompositionRolloutReconciler) mapXRToRollout(ctx context.Context, cc clusterClients, obj client.Object) []reconcile.Request {
 	u, ok := obj.(*unstructured.Unstructured)
 	if !ok {
 		return nil
@@ -96,11 +101,11 @@ func (r *CompositionRolloutReconciler) mapXRToRollout(ctx context.Context, obj c
 	if compName == "" {
 		return nil
 	}
-	return r.requestsForComposition(ctx, compName)
+	return r.requestsForComposition(ctx, cc, compName)
 }
 
-func (r *CompositionRolloutReconciler) requestsForComposition(ctx context.Context, compName string) []reconcile.Request {
-	crList, err := r.listRolloutsForComposition(ctx, compName)
+func (r *CompositionRolloutReconciler) requestsForComposition(ctx context.Context, cc clusterClients, compName string) []reconcile.Request {
+	crList, err := r.listRolloutsForComposition(ctx, cc, compName)
 	if err != nil {
 		return nil
 	}
@@ -113,33 +118,42 @@ func (r *CompositionRolloutReconciler) requestsForComposition(ctx context.Contex
 	return reqs
 }
 
-func (r *CompositionRolloutReconciler) ensureXRWatch(gvk schema.GroupVersionKind) error {
-	if _, loaded := r.xrWatches.Load(gvk); loaded {
+type xrWatchKey struct {
+	cluster string
+	gvk     schema.GroupVersionKind
+}
+
+func (r *CompositionRolloutReconciler) ensureXRWatch(cc clusterClients, gvk schema.GroupVersionKind) error {
+	key := xrWatchKey{cluster: cc.cluster, gvk: gvk}
+	if _, loaded := r.xrWatches.Load(key); loaded {
 		return nil
 	}
 	r.xrWatchMu.Lock()
 	defer r.xrWatchMu.Unlock()
-	if _, loaded := r.xrWatches.Load(gvk); loaded {
+	if _, loaded := r.xrWatches.Load(key); loaded {
 		return nil
 	}
-	if r.controller == nil {
+	if cc.cluster != "" {
+		return fmt.Errorf("cluster %s: XR watch has no cluster", cc.cluster)
+	}
+	if cc.controller == nil {
 		return nil
 	}
 
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(gvk)
-	if r.Scheme != nil {
-		r.Scheme.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
-		r.Scheme.AddKnownTypeWithName(gvk.GroupVersion().WithKind(gvk.Kind+"List"), &unstructured.UnstructuredList{})
+	if cc.scheme != nil {
+		cc.scheme.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
+		cc.scheme.AddKnownTypeWithName(gvk.GroupVersion().WithKind(gvk.Kind+"List"), &unstructured.UnstructuredList{})
 	}
 
 	typedHandler := handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, obj *unstructured.Unstructured) []reconcile.Request {
-		return r.mapXRToRollout(ctx, obj)
+		return r.mapXRToRollout(ctx, cc, obj)
 	})
-	if err := r.controller.Watch(source.Kind(r.mgr.GetCache(), u, typedHandler)); err != nil {
+	if err := cc.controller.Watch(source.Kind(cc.cache, u, typedHandler)); err != nil {
 		return err
 	}
-	r.xrWatches.Store(gvk, struct{}{})
+	r.xrWatches.Store(key, struct{}{})
 	return nil
 }
 

@@ -63,17 +63,21 @@ type CompositionRolloutReconciler struct {
 
 // Reconcile moves cluster state toward the desired CompositionRollout spec.
 func (r *CompositionRolloutReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	return r.reconcile(ctx, localClients(r), req)
+}
+
+func (r *CompositionRolloutReconciler) reconcile(ctx context.Context, cc clusterClients, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	cr := &rolloutsv1alpha1.CompositionRollout{}
-	if err := r.Get(ctx, req.NamespacedName, cr); err != nil {
+	if err := cc.client.Get(ctx, req.NamespacedName, cr); err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
 
-	overlap, compName, err := r.detectOverlap(ctx, cr)
+	overlap, compName, err := r.detectOverlap(ctx, cc, cr)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -88,10 +92,10 @@ func (r *CompositionRolloutReconciler) Reconcile(ctx context.Context, req ctrl.R
 			}
 		}
 		updateRolloutConditions(cr)
-		if err := r.Status().Update(ctx, cr); err != nil {
+		if err := cc.client.Status().Update(ctx, cr); err != nil {
 			return ctrl.Result{}, err
 		}
-		r.Recorder.Eventf(cr, "Warning", "RolloutPaused", "overlap on composition %s", compName)
+		cc.recorder.Eventf(cr, "Warning", "RolloutPaused", "overlap on composition %s", compName)
 		return ctrl.Result{RequeueAfter: periodicRequeue}, nil
 	}
 
@@ -114,7 +118,7 @@ func (r *CompositionRolloutReconciler) Reconcile(ctx context.Context, req ctrl.R
 			state.Phase = rolloutsv1alpha1.PhaseIdle
 		}
 
-		compRes, err := r.reconcileComposition(ctx, cr, target, state)
+		compRes, err := r.reconcileComposition(ctx, cc, cr, target, state)
 		if err != nil {
 			logger.Error(err, "reconcile composition", "composition", target.Name)
 			return ctrl.Result{}, err
@@ -126,16 +130,16 @@ func (r *CompositionRolloutReconciler) Reconcile(ctx context.Context, req ctrl.R
 
 	cr.Status.ObservedGeneration = cr.Generation
 	updateRolloutConditions(cr)
-	if err := r.Status().Update(ctx, cr); err != nil {
+	if err := cc.client.Status().Update(ctx, cr); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{RequeueAfter: minRequeue}, nil
 }
 
-func (r *CompositionRolloutReconciler) detectOverlap(ctx context.Context, cr *rolloutsv1alpha1.CompositionRollout) (bool, string, error) {
+func (r *CompositionRolloutReconciler) detectOverlap(ctx context.Context, cc clusterClients, cr *rolloutsv1alpha1.CompositionRollout) (bool, string, error) {
 	var all rolloutsv1alpha1.CompositionRolloutList
-	if err := r.List(ctx, &all); err != nil {
+	if err := cc.client.List(ctx, &all); err != nil {
 		return false, "", err
 	}
 	for i := range all.Items {

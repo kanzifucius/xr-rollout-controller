@@ -31,15 +31,15 @@ import (
 	"github.com/kanzifucius/xr-rollout-controller/internal/xp"
 )
 
-func (r *CompositionRolloutReconciler) listRolloutsForComposition(ctx context.Context, compName string) ([]rolloutsv1alpha1.CompositionRollout, error) {
+func (r *CompositionRolloutReconciler) listRolloutsForComposition(ctx context.Context, cc clusterClients, compName string) ([]rolloutsv1alpha1.CompositionRollout, error) {
 	var list rolloutsv1alpha1.CompositionRolloutList
-	if err := r.List(ctx, &list, client.MatchingFields{FieldIndexCompositionName: compName}); err != nil {
+	if err := cc.client.List(ctx, &list, client.MatchingFields{FieldIndexCompositionName: compName}); err != nil {
 		return nil, err
 	}
 	return list.Items, nil
 }
 
-func (r *CompositionRolloutReconciler) patchXRRevision(ctx context.Context, u *unstructured.Unstructured, revName string) error {
+func (r *CompositionRolloutReconciler) patchXRRevision(ctx context.Context, cc clusterClients, u *unstructured.Unstructured, revName string) error {
 	// Apply only the revision name. A full-object apply would claim every other field.
 	patchBase := &unstructured.Unstructured{}
 	patchBase.SetGroupVersionKind(u.GroupVersionKind())
@@ -50,14 +50,14 @@ func (r *CompositionRolloutReconciler) patchXRRevision(ctx context.Context, u *u
 	if r.ForceOwnership {
 		opts = append(opts, client.ForceOwnership)
 	}
-	err := r.Patch(ctx, patchBase, client.Apply, opts...)
+	err := cc.client.Patch(ctx, patchBase, client.Apply, opts...)
 	if err == nil || r.ForceOwnership || !crossplaneRevisionConflict(err) {
 		return err
 	}
 	// Crossplane applies this field itself. Take it so a Manual rollout can
 	// change the revision. Any other manager still surfaces as PatchFailed.
 	opts = append(opts, client.ForceOwnership)
-	return r.Patch(ctx, patchBase, client.Apply, opts...)
+	return cc.client.Patch(ctx, patchBase, client.Apply, opts...)
 }
 
 var conflictManagerPattern = regexp.MustCompile(`conflict with "([^"]+)"`)
@@ -206,11 +206,11 @@ func (r *CompositionRolloutReconciler) evaluateHealth(
 	return canaryHealthy, soakPassed, soakFailed, waveFailed
 }
 
-func targetRevisionMissing(ctx context.Context, r *CompositionRolloutReconciler, composition string, state *rolloutsv1alpha1.CompositionRolloutState) (bool, error) {
+func targetRevisionMissing(ctx context.Context, cc clusterClients, composition string, state *rolloutsv1alpha1.CompositionRolloutState) (bool, error) {
 	if state.TargetRevision.Name == "" || !phaseTracksTargetRevision(state.Phase) {
 		return false, nil
 	}
-	revMap, err := buildRevisionMap(ctx, r, composition)
+	revMap, err := buildRevisionMap(ctx, cc, composition)
 	if err != nil {
 		return false, err
 	}
