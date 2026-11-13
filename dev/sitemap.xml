@@ -25,6 +25,10 @@
          <lastmod>2026-11-13</lastmod>
     </url>
     <url>
+         <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/hub/</loc>
+         <lastmod>2026-11-13</lastmod>
+    </url>
+    <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/install/</loc>
          <lastmod>2026-11-13</lastmod>
     </url>
@@ -54,6 +58,18 @@
     </url>
     <url>
          <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/architecture/workflow/</loc>
+         <lastmod>2026-11-13</lastmod>
+    </url>
+    <url>
+         <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/getting-started/hub/</loc>
+         <lastmod>2026-11-13</lastmod>
+    </url>
+    <url>
+         <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/getting-started/local/</loc>
+         <lastmod>2026-11-13</lastmod>
+    </url>
+    <url>
+         <loc>https://kanzifucius.github.io/xr-rollout-controller/latest/getting-started/remote/</loc>
          <lastmod>2026-11-13</lastmod>
     </url>
 </urlset>
