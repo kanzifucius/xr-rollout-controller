@@ -18,13 +18,13 @@ Set `mode: remote`. The chart installs the controller, the `PromotionPipeline` C
 
 The ServiceAccount can update `PromotionPipeline`, including status.
 
-One Secret per cluster. The name is the cluster name. The annotation is the environment key. A Secret named `acc` can carry environment `acceptance`.
+One Secret per cluster, in the release namespace. The [install](../install.md) example uses `xr-rollout-controller-system`. The Secret name is the cluster name. The annotation `rollouts.platform.example.org/environment` is the promotion key, so `acc` can be `acceptance`. Local mode does not use this Secret. Remote and hub both do. The chart does not create it.
 
 ## Each spoke
 
 Install [local](local.md). Put the `CompositionRollout` on the spoke.
 
-Bind the kubeconfig user to the ClusterRole in `config/rbac/promoter_remote_role.yaml` (the chart copies it to `charts/xr-rollout-controller/files/promoter-remote-rbac.yaml`). The role is `xr-rollout-promoter`. It can get and patch `CompositionRollout`, which is how `Start` is appended, and it can read CompositionRevisions. It cannot write status and it cannot patch XRs. Do not give that user the XR aggregate role. The spoke controller's ServiceAccount keeps that.
+Bind the kubeconfig user `xr-rollout-promoter` to the ClusterRole in `config/rbac/promoter_remote_role.yaml` (the chart copies it to `charts/xr-rollout-controller/files/promoter-remote-rbac.yaml`). The role is `xr-rollout-promoter`. It can get and patch `CompositionRollout`, which is how `Start` is appended, and it can read CompositionRevisions. It cannot write status and it cannot patch XRs. Do not give that user the XR aggregate role. The spoke controller's ServiceAccount keeps that.
 
 ## Example
 
@@ -36,19 +36,66 @@ promoter:
     - acc
 ```
 
+Apply this ExternalSecret, or apply the Secret it writes. `vault` is an example SecretStore. The template sets the label and the annotation on the Secret.
+
+```yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: acc
+  namespace: xr-rollout-controller-system
+spec:
+  secretStoreRef:
+    name: vault
+    kind: SecretStore
+  target:
+    name: acc
+    template:
+      metadata:
+        labels:
+          sigs.k8s.io/multicluster-runtime-kubeconfig: "true"
+        annotations:
+          rollouts.platform.example.org/environment: acceptance
+  data:
+    - secretKey: kubeconfig
+      remoteRef:
+        key: clusters/acc
+        property: kubeconfig
+```
+
+The user in the kubeconfig is `xr-rollout-promoter`. The client certificate and key are that user's credentials.
+
 ```yaml
 apiVersion: v1
 kind: Secret
 metadata:
   name: acc
-  namespace: xr-rollout
+  namespace: xr-rollout-controller-system
   labels:
     sigs.k8s.io/multicluster-runtime-kubeconfig: "true"
   annotations:
     rollouts.platform.example.org/environment: acceptance
 type: Opaque
-data:
-  kubeconfig: <base64 kubeconfig>
+stringData:
+  kubeconfig: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+      - name: acc
+        cluster:
+          server: https://acc.example.org:6443
+          certificate-authority-data: <certificate-authority-data>
+    contexts:
+      - name: acc
+        context:
+          cluster: acc
+          user: xr-rollout-promoter
+    current-context: acc
+    users:
+      - name: xr-rollout-promoter
+        user:
+          client-certificate-data: <client-certificate-data>
+          client-key-data: <client-key-data>
 ```
 
 Apply the same object name on each spoke. `dev` can keep `autoStart: true`. Later clusters set `autoStart: false` so they wait for `Start`. Use server-side apply so Git does not own that trigger key. The field manager is `xr-rollout-promoter`.
