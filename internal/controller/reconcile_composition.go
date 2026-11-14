@@ -50,11 +50,17 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 
 	latest, err := r.latestCompositionRevision(ctx, cc, target.Name)
 	if err != nil {
+		if r.noteCredentialDenied(cc, cr, target, state, err) {
+			return res, nil
+		}
 		return res, nil
 	}
 
 	gvk, err := r.compositeTypeGVK(ctx, cc, target.Name)
 	if err != nil {
+		if r.noteCredentialDenied(cc, cr, target, state, err) {
+			return res, nil
+		}
 		return res, err
 	}
 	if err := r.ensureXRWatch(cc, gvk); err != nil {
@@ -63,6 +69,9 @@ func (r *CompositionRolloutReconciler) reconcileComposition(
 
 	xrs, err := r.listXRs(ctx, cc, gvk)
 	if err != nil {
+		if r.noteCredentialDenied(cc, cr, target, state, err) {
+			return res, nil
+		}
 		return res, err
 	}
 
@@ -397,13 +406,14 @@ func (r *CompositionRolloutReconciler) patchCanaries(
 		})
 		if err != nil {
 			metrics.IncUpdateErrors(cc.cluster, cr.Name, target.Name, r.MetricsAggregateOnly)
+			reason := pauseReasonForPatch(err)
 			state.Phase = rolloutsv1alpha1.PhasePaused
 			state.PhaseBeforePause = rolloutsv1alpha1.PhaseCanarying
 			state.PauseReason = &rolloutsv1alpha1.PauseReason{
-				Reason:  rolloutsv1alpha1.PauseReasonPatchFailed,
+				Reason:  reason,
 				Message: err.Error(),
 			}
-			metrics.IncPause(cc.cluster, cr.Name, target.Name, rolloutsv1alpha1.PauseReasonPatchFailed, r.MetricsAggregateOnly)
+			metrics.IncPause(cc.cluster, cr.Name, target.Name, reason, r.MetricsAggregateOnly)
 			cc.recorder.Eventf(cr, "Warning", "RolloutPaused", "composition %s paused: %s", target.Name, err.Error())
 			return nil
 		}
@@ -507,7 +517,7 @@ func (r *CompositionRolloutReconciler) promoteWave(
 		if err := eg.Wait(); err != nil {
 			state.Phase = rolloutsv1alpha1.PhasePaused
 			state.PauseReason = &rolloutsv1alpha1.PauseReason{
-				Reason:  rolloutsv1alpha1.PauseReasonPatchFailed,
+				Reason:  pauseReasonForPatch(err),
 				Message: err.Error(),
 			}
 			return nil

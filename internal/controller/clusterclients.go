@@ -37,11 +37,14 @@ type clusterClients struct {
 	mapper      meta.RESTMapper
 	recorder    record.EventRecorder
 	environment string
-	cluster     string
-	cache       cache.Cache
-	scheme      *runtime.Scheme
-	controller  controller.Controller
-	clusterObj  cluster.Cluster
+	// cluster is the logical cluster. Empty on the local manager.
+	cluster string
+	// clientID is the kubeconfig Secret name in hub mode. Empty in local mode.
+	clientID   string
+	cache      cache.Cache
+	scheme     *runtime.Scheme
+	controller controller.Controller
+	clusterObj cluster.Cluster
 }
 
 func localClients(r *CompositionRolloutReconciler) clusterClients {
@@ -65,6 +68,14 @@ func (cc clusterClients) apiClient() client.Client {
 		return cc.api
 	}
 	return cc.client
+}
+
+// watchName is the engaged client id. Local mode uses the empty cluster name.
+func (cc clusterClients) watchName() string {
+	if cc.clientID != "" {
+		return cc.clientID
+	}
+	return cc.cluster
 }
 
 // Placement is where the CompositionRollout reconciler runs.

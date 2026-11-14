@@ -129,7 +129,7 @@ type xrWatchKey struct {
 }
 
 func (r *CompositionRolloutReconciler) ensureXRWatch(cc clusterClients, gvk schema.GroupVersionKind) error {
-	key := xrWatchKey{cluster: cc.cluster, gvk: gvk}
+	key := xrWatchKey{cluster: cc.watchName(), gvk: gvk}
 	if xrWatchCurrent(&r.xrWatches, key, cc) {
 		return nil
 	}

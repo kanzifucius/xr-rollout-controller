@@ -69,3 +69,53 @@ func TestHubSpokeRoleReadsCompositionsAndDoesNotGrantRollouts(t *testing.T) {
 		t.Fatal("missing aggregate role")
 	}
 }
+
+func TestHubTeamRoleBindsOnlyThatTeamsXRs(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile("../../config/rbac/hub_spoke_team_role.yaml")
+	if err != nil {
+		t.Fatalf("read role: %v", err)
+	}
+	users := map[string]struct{}{}
+	resources := map[string]struct{}{}
+	for _, doc := range strings.Split(string(raw), "\n---\n") {
+		var obj struct {
+			Kind     string              `json:"kind"`
+			RoleRef  rbacv1.RoleRef      `json:"roleRef"`
+			Rules    []rbacv1.PolicyRule `json:"rules"`
+			Subjects []rbacv1.Subject    `json:"subjects"`
+		}
+		if err := yaml.Unmarshal([]byte(doc), &obj); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if obj.RoleRef.Name == "xr-rollout-hub-xr-access" {
+			t.Fatal("team file binds the aggregate role")
+		}
+		for _, rule := range obj.Rules {
+			for _, res := range rule.Resources {
+				if res == "*" {
+					t.Fatal("team role is a wildcard")
+				}
+				resources[res] = struct{}{}
+			}
+		}
+		for _, subject := range obj.Subjects {
+			if subject.Kind != "User" {
+				t.Fatalf("subject kind = %s", subject.Kind)
+			}
+			users[subject.Name] = struct{}{}
+		}
+	}
+	if _, ok := users["xr-rollout-payments"]; !ok {
+		t.Fatal("missing payments user")
+	}
+	if _, ok := users["xr-rollout-platform"]; !ok {
+		t.Fatal("missing platform user")
+	}
+	if _, ok := resources["databases"]; !ok {
+		t.Fatal("missing databases")
+	}
+	if _, ok := resources["caches"]; !ok {
+		t.Fatal("missing caches")
+	}
+}

@@ -55,15 +55,17 @@ const (
 	TriggerResume  TriggerAction = "Resume"
 	TriggerAbort   TriggerAction = "Abort"
 
-	PauseReasonCanaryUnhealthy      = "CanaryUnhealthy"
-	PauseReasonWaveUnhealthy        = "WaveUnhealthy"
-	PauseReasonStabilisationTimeout = "StabilisationTimeout"
-	PauseReasonPatchFailed          = "PatchFailed"
-	PauseReasonCanarySetEmpty       = "CanarySetEmpty"
-	PauseReasonSuspended            = "Suspended"
-	PauseReasonOverlap              = "CompositionOverlap"
-	PauseReasonTargetRevisionGone   = "TargetRevisionGone"
-	PauseReasonSchemaChange         = "SchemaChange"
+	PauseReasonCanaryUnhealthy       = "CanaryUnhealthy"
+	PauseReasonWaveUnhealthy         = "WaveUnhealthy"
+	PauseReasonStabilisationTimeout  = "StabilisationTimeout"
+	PauseReasonPatchFailed           = "PatchFailed"
+	PauseReasonCanarySetEmpty        = "CanarySetEmpty"
+	PauseReasonSuspended             = "Suspended"
+	PauseReasonOverlap               = "CompositionOverlap"
+	PauseReasonTargetRevisionGone    = "TargetRevisionGone"
+	PauseReasonSchemaChange          = "SchemaChange"
+	PauseReasonCredentialUnavailable = "CredentialUnavailable"
+	PauseReasonCredentialDenied      = "CredentialDenied"
 )
 
 // RolloutPhase is the phase of a single composition's rollout.
@@ -98,12 +100,20 @@ type CompositionRolloutSpec struct {
 	// +kubebuilder:validation:MinItems=1
 	Compositions []CompositionTarget `json:"compositions"`
 
-	// Cluster names the engaged cluster whose composite resources this object rolls.
+	// Cluster is the logical cluster and the promotion key.
 	// Leave it empty when the object lives on that cluster.
 	// With --mode=hub the object lives on this install and Cluster is required.
-	// One hub object names one cluster.
+	// The promotion pipeline matches this name. It does not select a kubeconfig.
 	// +optional
 	Cluster string `json:"cluster,omitempty"`
+
+	// KubeconfigSecretRef names the Secret whose kubeconfig this rollout uses.
+	// Hub mode only. Local mode has no kubeconfig Secrets. Remote mode keeps
+	// one Secret per cluster and does not read this field.
+	// When unset, the Secret name is Cluster and the namespace is the
+	// controller namespace.
+	// +optional
+	KubeconfigSecretRef *KubeconfigSecretReference `json:"kubeconfigSecretRef,omitempty"`
 
 	// Suspend stops the controller acting on new revisions (and pauses any
 	// in-flight rollout) without deleting state.
@@ -146,6 +156,22 @@ type CompositionRolloutSpec struct {
 	// +listMapKey=revision
 	// +optional
 	Triggers []RolloutTrigger `json:"triggers,omitempty"`
+}
+
+// KubeconfigSecretReference names a kubeconfig Secret.
+// The Secret name is the client id. Cluster stays the logical cluster.
+type KubeconfigSecretReference struct {
+	// Name of the Secret.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	Name string `json:"name"`
+
+	// Namespace of the Secret. Empty uses the controller namespace,
+	// the release namespace where kubeconfig Secrets live.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=63
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // CompositionTarget names a Composition and optional XR narrowing.

@@ -83,6 +83,10 @@ func (r *CompositionRolloutReconciler) reconcile(ctx context.Context, cc cluster
 		return ctrl.Result{}, err
 	}
 
+	if cc.clientID != "" {
+		clearCredentialUnavailable(cr)
+	}
+
 	overlap, message, err := r.detectOverlap(ctx, cc, cr)
 	if err != nil {
 		return ctrl.Result{}, err
