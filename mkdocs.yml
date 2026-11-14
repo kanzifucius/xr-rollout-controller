@@ -110,6 +110,7 @@ nav:
       - Remote: getting-started/remote.md
       - Hub: getting-started/hub.md
   - Install: install.md
+  - CLI: cli.md
   - CompositionRollout:
       - The CRD: crd.md
       - Canary and promotion: canary.md

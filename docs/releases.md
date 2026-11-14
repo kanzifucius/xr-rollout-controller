@@ -27,10 +27,12 @@ Two workflows run on that push. [Release](https://github.com/kanzifucius/xr-roll
 |----------|--------|------|
 | Controller image | `ghcr.io/kanzifucius/xr-rollout-controller` | the git tag. The `latest` image tag is published from `main` only. |
 | Helm chart | `oci://ghcr.io/kanzifucius/charts/xr-rollout-controller` | tag without `v` (`1.2.3` or `1.2.3-rc.1`). `appVersion` is the git tag. A pre-release stays on that version. It is not copied onto a stable version or `latest`. |
-| GitHub Release | this repository | `install.yaml` and `compositionrollouts.crd.yaml`, with generated notes. A pre-release is created with `--prerelease` and `--latest=false`. |
+| GitHub Release | this repository | `install.yaml`, `compositionrollouts.crd.yaml`, and the `xr-rollout` CLI binaries, with generated notes. A pre-release is created with `--prerelease` and `--latest=false`. |
 | Docs version | GitHub Pages (mike tree on `gh-pages`) | tag without `v`. Stable tags also move the `latest` alias. Pre-releases leave `latest` on the last stable version. |
 
-Pushes to `main` publish the image as the short SHA and as `latest`. They do not push a Helm chart. They do publish docs version `dev`.
+Pushes to `main` publish the image as the short SHA and as `latest`. They do not push a Helm chart or a CLI binary. They do publish docs version `dev`.
+
+The `xr-rollout` binary is attached to that same GitHub Release. There is no separate tag. A pre-release tag publishes the binary on the pre-release and does not mark it Latest.
 
 ## How a release shows up in the docs
 
