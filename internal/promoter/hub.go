@@ -29,6 +29,8 @@ import (
 )
 
 func (r *PromoterReconciler) readHubView(ctx context.Context, clusterName, composition, wantRevision string) (ClusterView, error) {
+	// Any engaged client for the logical cluster can list CompositionRevisions.
+	// The rollout's own Secret is selected by the CompositionRollout reconciler.
 	spoke, err := r.clientFor(ctx, clusterName)
 	if err != nil {
 		if errors.Is(err, multicluster.ErrClusterNotFound) {
@@ -36,7 +38,7 @@ func (r *PromoterReconciler) readHubView(ctx context.Context, clusterName, compo
 		}
 		return ClusterView{}, err
 	}
-	cr, err := hubRolloutForCluster(ctx, r.Local, clusterName)
+	cr, err := hubRolloutForComposition(ctx, r.Local, clusterName, composition)
 	if err != nil {
 		return ClusterView{}, err
 	}
@@ -78,7 +80,7 @@ func (r *PromoterReconciler) hubCatalog(ctx context.Context, pipeline *rolloutsv
 	if err := r.Local.List(ctx, list); err != nil {
 		return hopSource{}, fmt.Errorf("list CompositionRollout: %w", err)
 	}
-	seen := map[string]struct{}{}
+	claimed := map[string]string{}
 	comps := map[string]struct{}{}
 	for i := range list.Items {
 		item := &list.Items[i]
@@ -89,12 +91,14 @@ func (r *PromoterReconciler) hubCatalog(ctx context.Context, pipeline *rolloutsv
 		if _, ok := wanted[name]; !ok {
 			continue
 		}
-		if _, ok := seen[name]; ok {
-			return hopSource{}, fmt.Errorf("cluster %s: more than one CompositionRollout", name)
-		}
-		seen[name] = struct{}{}
 		for j := range item.Spec.Compositions {
-			comps[item.Spec.Compositions[j].Name] = struct{}{}
+			comp := item.Spec.Compositions[j].Name
+			key := name + "\x00" + comp
+			if prev, ok := claimed[key]; ok {
+				return hopSource{}, fmt.Errorf("cluster %s composition %s: claimed by %s and %s", name, comp, prev, item.Name)
+			}
+			claimed[key] = item.Name
+			comps[comp] = struct{}{}
 		}
 	}
 	names := make([]string, 0, len(comps))
@@ -108,7 +112,7 @@ func (r *PromoterReconciler) hubCatalog(ctx context.Context, pipeline *rolloutsv
 	}, nil
 }
 
-func hubRolloutForCluster(ctx context.Context, cl client.Client, clusterName string) (*rolloutsv1alpha1.CompositionRollout, error) {
+func hubRolloutForComposition(ctx context.Context, cl client.Client, clusterName, composition string) (*rolloutsv1alpha1.CompositionRollout, error) {
 	if cl == nil {
 		return nil, fmt.Errorf("hub client is not configured")
 	}
@@ -119,11 +123,11 @@ func hubRolloutForCluster(ctx context.Context, cl client.Client, clusterName str
 	var found *rolloutsv1alpha1.CompositionRollout
 	for i := range list.Items {
 		item := &list.Items[i]
-		if item.Spec.Cluster != clusterName {
+		if item.Spec.Cluster != clusterName || !governs(item.Spec, composition) {
 			continue
 		}
 		if found != nil {
-			return nil, fmt.Errorf("cluster %s: more than one CompositionRollout", clusterName)
+			return nil, fmt.Errorf("cluster %s composition %s: more than one CompositionRollout", clusterName, composition)
 		}
 		found = item.DeepCopy()
 	}

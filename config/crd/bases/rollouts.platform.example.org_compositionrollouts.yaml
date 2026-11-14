@@ -154,10 +154,10 @@ spec:
                 type: object
               cluster:
                 description: |-
-                  Cluster names the engaged cluster whose composite resources this object rolls.
+                  Cluster is the logical cluster and the promotion key.
                   Leave it empty when the object lives on that cluster.
                   With --mode=hub the object lives on this install and Cluster is required.
-                  One hub object names one cluster.
+                  The promotion pipeline matches this name. It does not select a kubeconfig.
                 type: string
               compositions:
                 description: |-
@@ -240,6 +240,29 @@ spec:
                   DryRun simulates this rollout. The controller records which Manual XRs
                   would move and does not write them. Default false.
                 type: boolean
+              kubeconfigSecretRef:
+                description: |-
+                  KubeconfigSecretRef names the Secret whose kubeconfig this rollout uses.
+                  Hub mode only. Local mode has no kubeconfig Secrets. Remote mode keeps
+                  one Secret per cluster and does not read this field.
+                  When unset, the Secret name is Cluster and the namespace is the
+                  controller namespace.
+                properties:
+                  name:
+                    description: Name of the Secret.
+                    maxLength: 253
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: |-
+                      Namespace of the Secret. Empty uses the controller namespace,
+                      the release namespace where kubeconfig Secrets live.
+                    maxLength: 63
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
               onNewRevision:
                 allOf:
                 - enum:

@@ -21,6 +21,8 @@ data:
 
 The Secret name is the cluster name. The data key is `kubeconfig`. Repeat the Secret for `test`, `acc`, and `prod`. The chart does not create these Secrets.
 
+This page is remote mode: one Secret per cluster. Hub mode can give a `CompositionRollout` its own Secret. `spec.cluster` stays the promotion key. The pipeline does not choose the credential. See [Hub](hub.md).
+
 The order is not the order the Secrets were created. It is `PromotionPipeline.spec.clusters`, which the chart renders from `promoter.clusters` (default `dev`, `test`, `acc`, `prod`). A pipeline lists 2 to 32 clusters. Each name is unique and at most 253 characters, the same limit as a Secret name. The management install is `--set mode=remote`. Each spoke is `--set mode=local`.
 
 `dev` keeps `autoStart: true`. `test`, `acc`, and `prod` set `autoStart: false`. The promoter does not change that field. If a later cluster leaves `autoStart: true`, that cluster can start a revision before the previous one finishes. The promoter will not append a `Start` that the spoke would acknowledge as `Stale`. It records that the revision has already started, and it still waits for that cluster to finish before opening the cluster after it.

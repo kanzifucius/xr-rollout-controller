@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -44,17 +45,18 @@ import (
 // The kubeconfig provider implements it. This package does not import the promoter.
 type ClusterSource interface {
 	Get(ctx context.Context, clusterName string) (cluster.Cluster, error)
-	Environment(clusterName string) (string, bool)
+	Engagement(clusterName string) (environment string, engaged bool)
 }
 
 // RemoteReconciler watches spoke Compositions, CompositionRevisions, and composite
 // resources, and reconciles the hub CompositionRollout for that cluster.
 // The CompositionRollout object and its status stay on the hub.
 type RemoteReconciler struct {
-	Inner    *CompositionRolloutReconciler
-	Clusters ClusterSource
-	Hub      client.Client
-	mc       mccontroller.Controller
+	Inner     *CompositionRolloutReconciler
+	Clusters  ClusterSource
+	Hub       client.Client
+	Namespace string
+	mc        mccontroller.Controller
 }
 
 // Reconcile handles a spoke event that names a hub CompositionRollout.
@@ -79,8 +81,12 @@ func (r *CompositionRolloutReconciler) reconcileHub(ctx context.Context, req ctr
 	if cr.Spec.Cluster == "" {
 		return ctrl.Result{}, fmt.Errorf("CompositionRollout %s: spec.cluster is required", cr.Name)
 	}
-	cc, err := r.remote.clientsFor(ctx, cr.Spec.Cluster)
+	cc, err := r.remote.clientsFor(ctx, cr)
 	if err != nil {
+		var cred *credentialUnavailableError
+		if errors.As(err, &cred) {
+			return r.writeCredentialPause(ctx, cr, cred.Error())
+		}
 		return ctrl.Result{}, err
 	}
 	cc.api = r.Client
@@ -88,26 +94,40 @@ func (r *CompositionRolloutReconciler) reconcileHub(ctx context.Context, req ctr
 	return r.reconcile(ctx, cc, req)
 }
 
-func (r *RemoteReconciler) clientsFor(ctx context.Context, clusterName string) (clusterClients, error) {
-	env, ok := r.Clusters.Environment(clusterName)
-	if !ok || env == "" {
-		return clusterClients{}, fmt.Errorf("cluster %s: kubeconfig Secret has no environment annotation", clusterName)
+func (r *RemoteReconciler) clientsFor(ctx context.Context, cr *rolloutsv1alpha1.CompositionRollout) (clusterClients, error) {
+	name, namespace := kubeconfigRef(cr, r.Namespace)
+	if r.Namespace != "" && namespace != r.Namespace {
+		return clusterClients{}, &credentialUnavailableError{
+			message: fmt.Sprintf("kubeconfig Secret %s/%s is not in namespace %s", namespace, name, r.Namespace),
+		}
 	}
-	cl, err := r.Clusters.Get(ctx, clusterName)
+	env, engaged := r.Clusters.Engagement(name)
+	if !engaged {
+		msg := fmt.Sprintf("kubeconfig Secret %s is not engaged", name)
+		if extra := credentialFailure(r.Clusters, name); extra != "" {
+			msg = extra
+		}
+		return clusterClients{}, &credentialUnavailableError{message: msg}
+	}
+	if env == "" {
+		return clusterClients{}, fmt.Errorf("kubeconfig Secret %s has no environment annotation", name)
+	}
+	cl, err := r.Clusters.Get(ctx, name)
 	if err != nil {
-		return clusterClients{}, fmt.Errorf("get cluster %s: %w", clusterName, err)
+		return clusterClients{}, fmt.Errorf("get cluster %s: %w", name, err)
 	}
 	cfg := cl.GetConfig()
 	dyn, err := dynamic.NewForConfig(cfg)
 	if err != nil {
-		return clusterClients{}, fmt.Errorf("dynamic client for %s: %w", clusterName, err)
+		return clusterClients{}, fmt.Errorf("dynamic client for %s: %w", name, err)
 	}
 	return clusterClients{
 		client:      cl.GetClient(),
 		dynamic:     dyn,
 		mapper:      cl.GetRESTMapper(),
 		environment: env,
-		cluster:     clusterName,
+		cluster:     cr.Spec.Cluster,
+		clientID:    name,
 		cache:       cl.GetCache(),
 		scheme:      cl.GetScheme(),
 		clusterObj:  cl,
@@ -164,12 +184,12 @@ func (r *RemoteReconciler) enqueueComposition(clusterName string, _ cluster.Clus
 	return mchandler.ForCluster(inner, clusterName)
 }
 
-func (r *RemoteReconciler) requests(ctx context.Context, clusterName, compName string) []reconcile.Request {
-	if r.Hub == nil || clusterName == "" || compName == "" {
+func (r *RemoteReconciler) requests(ctx context.Context, clientName, compName string) []reconcile.Request {
+	if r.Hub == nil || clientName == "" || compName == "" {
 		return nil
 	}
 	var list rolloutsv1alpha1.CompositionRolloutList
-	if err := r.Hub.List(ctx, &list, client.MatchingFields{FieldIndexCluster: clusterName}); err != nil {
+	if err := r.Hub.List(ctx, &list, client.MatchingFields{FieldIndexKubeconfig: clientName}); err != nil {
 		return nil
 	}
 	reqs := make([]reconcile.Request, 0, len(list.Items))
@@ -200,6 +220,7 @@ func (r *CompositionRolloutReconciler) watchRemoteXRs(cc clusterClients, key xrW
 	if cc.clusterObj == nil || r.remote == nil || r.remote.mc == nil {
 		return fmt.Errorf("cluster %s: XR watch has no cluster", cc.cluster)
 	}
+	name := cc.watchName()
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(gvk)
 	if cc.scheme != nil {
@@ -216,12 +237,12 @@ func (r *CompositionRolloutReconciler) watchRemoteXRs(cc clusterClients, key xrW
 		})
 		return mchandler.TypedForCluster(inner, clusterName)
 	}
-	src, err := mcsource.TypedKind(u, handlerFn).ForCluster(cc.cluster, cc.clusterObj)
+	src, err := mcsource.TypedKind(u, handlerFn).ForCluster(name, cc.clusterObj)
 	if err != nil {
-		return fmt.Errorf("xr watch for %s: %w", cc.cluster, err)
+		return fmt.Errorf("xr watch for %s: %w", name, err)
 	}
 	if err := r.remote.mc.Watch(src); err != nil {
-		return fmt.Errorf("watch %s on %s: %w", gvk, cc.cluster, err)
+		return fmt.Errorf("watch %s on %s: %w", gvk, name, err)
 	}
 	r.xrWatches.Store(key, cc.clusterObj)
 	return nil
