@@ -1340,6 +1340,7 @@
 <h1 id="dry-run">Dry run<a class="headerlink" href="#dry-run" title="Permanent link">&para;</a></h1>
 <p><code>spec.dryRun: true</code> runs the rollout decisions and does not change composite resources (XRs). The controller still chooses the canary, waits out soak and wave timers, stops for the environment gate, and pauses for the same health reasons. It records the XRs it would have patched. It does not write <code>spec.crossplane.compositionRevisionRef</code> or <code>compositionUpdatePolicy</code>.</p>
 <p>Leave the field off, or set it to <code>false</code>, for a real rollout. The default is <code>false</code>. One <code>CompositionRollout</code> can be a dry run while another object on the same controller still patches.</p>
+<p>In hub mode the dry run lists with the kubeconfig named on that object. A missing Secret pauses that object and leaves <code>wouldUpdate</code> empty.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">spec</span><span class="p">:</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">dryRun</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">autoStart</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>

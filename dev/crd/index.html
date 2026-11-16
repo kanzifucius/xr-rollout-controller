@@ -1432,6 +1432,14 @@
 <td>Composition names to govern. At least one. Optional <a href="#which-xrs-a-composition-governs"><code>xrSelector</code></a> narrows the fleet.</td>
 </tr>
 <tr>
+<td><code>cluster</code></td>
+<td>Logical cluster and the promotion key. Required in hub mode. Empty in local mode.</td>
+</tr>
+<tr>
+<td><code>kubeconfigSecretRef</code></td>
+<td>Hub mode only. Secret that holds the kubeconfig. <code>name</code> is required when the ref is set. <code>namespace</code> defaults to the controller namespace. Unset means the Secret name is <code>cluster</code>.</td>
+</tr>
+<tr>
 <td><code>suspend</code></td>
 <td>Pauses every in-flight rollout and ignores new revisions until cleared.</td>
 </tr>
@@ -1604,7 +1612,7 @@
 </tbody>
 </table>
 <p><code>kubectl get compositionrollouts</code> prints the first composition's phase.</p>
-<p>Two <code>CompositionRollout</code> objects must not claim the same composition. The example admission policy rejects the overlap, and the controller still pauses both if admission is bypassed.</p>
+<p>Two <code>CompositionRollout</code> objects must not claim the same composition. The example admission policy rejects the overlap, and the controller still pauses both if admission is bypassed. In hub mode two objects may share <code>spec.cluster</code> when their compositions differ and each names its own kubeconfig.</p>
 
 
 
