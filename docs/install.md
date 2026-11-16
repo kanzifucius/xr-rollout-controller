@@ -1,5 +1,7 @@
 # Install
 
+Install the public chart, then set `mode`. `local` is the default and does not use the alpha multi-cluster library. `remote` and `hub` do: [sigs.k8s.io/multicluster-runtime](https://github.com/kubernetes-sigs/multicluster-runtime) v0.20.4-alpha.7 is not a GA API. Pick the mode in [Local mode](getting-started/local.md), [Remote mode](getting-started/remote.md), or [Hub mode](getting-started/hub.md) before you rely on this command.
+
 Releases publish a multi-arch controller image and a Helm chart to GHCR. Both packages are public: pull and install them without a registry login or an image pull secret.
 
 Chart `--version` is SemVer **without** a leading `v`. Image tags **keep** `v`. A pre-release chart keeps the suffix, for example `1.2.3-rc.1`.
@@ -10,6 +12,7 @@ helm install xr-rollout-controller \
   --version 1.2.3 \
   --namespace xr-rollout-controller-system \
   --create-namespace \
+  --set mode=local \
   --set environment=dev
 ```
 
@@ -40,8 +43,8 @@ Private forks still need a token with `read:packages` and an image pull secret. 
 |-------|---------|---------|
 | `image.repository` | `ghcr.io/kanzifucius/xr-rollout-controller` | Controller image repository |
 | `image.tag` | chart `appVersion` | Image tag. Release charts set `appVersion` to the git tag, for example `v1.2.3` |
-| `environment` | `dev` | Passed as `--environment`. Local mode uses it. Remote and hub read the Secret annotation instead. |
-| `mode` | `local` | `local`, `remote`, or `hub`. See [Getting started](getting-started/local.md). |
+| `environment` | `dev` | Passed as `--environment`. This is the promotion key in local mode and on each remote spoke. Hub reads `rollouts.platform.example.org/environment` on the kubeconfig Secret instead. |
+| `mode` | `local` | `local` (default), `remote`, or `hub`. Remote and hub are alpha. |
 | `forceOwnership` | `false` | Force server-side apply ownership of the revision ref |
 | `metricsAggregateOnly` | `false` | Drop per-composition Prometheus labels |
 | `resources` | 10m/64Mi request, 500m/128Mi limit | Container resources |

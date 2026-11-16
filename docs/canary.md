@@ -1,4 +1,4 @@
-# Canary and promotion
+# Canary, soak, and waves
 
 Each composition on a `CompositionRollout` runs its own state machine.
 

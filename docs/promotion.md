@@ -1,27 +1,20 @@
 # Promotion across clusters
 
-Remote and hub use [sigs.k8s.io/multicluster-runtime](https://github.com/kubernetes-sigs/multicluster-runtime) v0.20.4-alpha.7. It is not a GA multi-cluster API. Engagement, kubeconfig Secrets, and the hub layout can change. Local mode does not use it.
+This page is the order of clusters after one of them has finished a revision. The management install appends `Start`. It does not patch an XR.
 
-This page is `--mode=remote`. Each spoke runs its own controller and rolls only that cluster's composite resources (XRs). This install appends one `Start` and does not patch an XR. To keep the objects on the management cluster instead, use [Hub](hub.md). Install steps are in [Getting started](getting-started/remote.md).
+Use it with [remote mode](getting-started/remote.md): each spoke runs its own controller. To keep `CompositionRollout` on the management cluster and patch spoke XRs from there, use [hub mode](getting-started/hub.md) instead. The pipeline still only appends `Start`, on the hub object whose `spec.cluster` is the next cluster.
 
-One management install is given kubeconfigs for `dev`, `test`, `acc`, and `prod`. Each kubeconfig is a Secret in the release namespace:
+Remote and hub use [sigs.k8s.io/multicluster-runtime](https://github.com/kubernetes-sigs/multicluster-runtime) v0.20.4-alpha.7. It is not a GA multi-cluster API. Kubeconfig Secrets and the hub layout can change.
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: dev
-  namespace: xr-rollout
-  labels:
-    sigs.k8s.io/multicluster-runtime-kubeconfig: "true"
-type: Opaque
-data:
-  kubeconfig: <base64 kubeconfig>
-```
+One management install is given kubeconfigs for `dev`, `test`, `acc`, and `prod`.
 
-The Secret name is the cluster name. The data key is `kubeconfig`. Repeat the Secret for `test`, `acc`, and `prod`. The chart does not create these Secrets.
+Kubeconfig Secret manifests, including the label, the namespace `xr-rollout-controller-system`, and a client certificate, are in [Remote mode](getting-started/remote.md#example). Copy those. A Secret in any other namespace is ignored.
 
-This page is remote mode: one Secret per cluster. Hub mode can give a `CompositionRollout` its own Secret. `spec.cluster` stays the promotion key. The pipeline does not choose the credential. See [Hub](hub.md).
+The kubeconfig user needs a static token or a client certificate. An `exec` user (kubelogin, Azure CLI, Entra ID) parses and then fails on the first API call: the controller image cannot run that binary.
+
+Hub mode can give one `CompositionRollout` its own Secret with `spec.kubeconfigSecretRef`. `spec.cluster` stays the promotion key. The pipeline does not choose the credential. The manifest is [Two teams, one cluster](getting-started/hub.md#two-teams-one-cluster).
+
+Repeat the Secret for `test`, `acc`, and `prod`. The chart does not create these Secrets. The Secret name is the cluster name. The data key is `kubeconfig`.
 
 The order is not the order the Secrets were created. It is `PromotionPipeline.spec.clusters`, which the chart renders from `promoter.clusters` (default `dev`, `test`, `acc`, `prod`). A pipeline lists 2 to 32 clusters. Each name is unique and at most 253 characters, the same limit as a Secret name. The management install is `--set mode=remote`. Each spoke is `--set mode=local`.
 

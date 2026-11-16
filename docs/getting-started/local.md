@@ -1,14 +1,14 @@
-# Local
+# Local mode
 
-Pick local when the controller and the composite resources (XRs) are on the same cluster. That is the default. It is also the install you put on each spoke when a management cluster runs [remote](remote.md) mode.
+Pick local when the controller and the composite resources (XRs) are on the same cluster. That is the default, and the only mode that does not use the alpha multi-cluster library. It is also the install you put on each spoke when a management cluster runs [remote mode](remote.md).
 
-One process watches `CompositionRollout` on that cluster and patches Manual XRs there. It does not talk to another cluster, and it does not use `sigs.k8s.io/multicluster-runtime`.
+One process watches `CompositionRollout` on that cluster and patches Manual XRs there. It does not talk to another cluster.
 
 ## What you get
 
 Health is `kubectl get compositionrollout` on that cluster. The controller has no kubeconfig for anywhere else.
 
-Every cluster that rolls its own XRs needs its own controller. If you want one install to open the next cluster, use [remote](remote.md) or [hub](hub.md).
+Every cluster that rolls its own XRs needs its own controller. If you want one install to open the next cluster, use [remote mode](remote.md) or [hub mode](hub.md).
 
 ## What is installed
 
@@ -34,10 +34,16 @@ environment: dev
 ```
 
 ```bash
-helm upgrade --install xr-rollout-controller charts/xr-rollout-controller \
-  --namespace xr-rollout --create-namespace \
-  --set mode=local --set environment=dev
+helm upgrade --install xr-rollout-controller \
+  oci://ghcr.io/kanzifucius/charts/xr-rollout-controller \
+  --version 1.2.3 \
+  --namespace xr-rollout-controller-system \
+  --create-namespace \
+  --set mode=local \
+  --set environment=dev
 ```
+
+Replace `1.2.3` with the chart version. `environment` here is the key in `spec.promotion.environments`.
 
 ```yaml
 apiVersion: rollouts.platform.example.org/v1alpha1

@@ -1,5 +1,7 @@
 # Releases
 
+This page is for a maintainer publishing a tag. To install a chart that is already published, use [Install](install.md). The version dropdown on this site is listed on [Home](index.md). The root currently redirects to `dev`. `latest` is not published yet.
+
 A maintainer cuts a release by pushing an annotated semver tag. Do not create the GitHub Release in the UI first; the Release workflow creates it.
 
 ```bash
