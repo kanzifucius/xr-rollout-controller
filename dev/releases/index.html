@@ -303,6 +303,25 @@
   
   
   
+    <li class="md-tabs__item">
+      <a href="../cli/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CLI
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
     
     
       <li class="md-tabs__item">
@@ -644,6 +663,33 @@
   
   
   
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
     
     
       
@@ -674,10 +720,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
             
   
   
@@ -695,8 +741,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -941,7 +987,7 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
         
           
           <div class="md-nav__link md-nav__container">
@@ -963,14 +1009,14 @@
             </a>
             
               
-              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
                 <span class="md-nav__icon md-icon"></span>
               </label>
             
           </div>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_5">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1300,7 +1346,7 @@
 <tr>
 <td>GitHub Release</td>
 <td>this repository</td>
-<td><code>install.yaml</code> and <code>compositionrollouts.crd.yaml</code>, with generated notes. A pre-release is created with <code>--prerelease</code> and <code>--latest=false</code>.</td>
+<td><code>install.yaml</code>, <code>compositionrollouts.crd.yaml</code>, and the <code>xr-rollout</code> CLI binaries, with generated notes. A pre-release is created with <code>--prerelease</code> and <code>--latest=false</code>.</td>
 </tr>
 <tr>
 <td>Docs version</td>
@@ -1309,7 +1355,8 @@
 </tr>
 </tbody>
 </table>
-<p>Pushes to <code>main</code> publish the image as the short SHA and as <code>latest</code>. They do not push a Helm chart. They do publish docs version <code>dev</code>.</p>
+<p>Pushes to <code>main</code> publish the image as the short SHA and as <code>latest</code>. They do not push a Helm chart or a CLI binary. They do publish docs version <code>dev</code>.</p>
+<p>The <code>xr-rollout</code> binary is attached to that same GitHub Release. There is no separate tag. A pre-release tag publishes the binary on the pre-release and does not mark it Latest.</p>
 <h2 id="how-a-release-shows-up-in-the-docs">How a release shows up in the docs<a class="headerlink" href="#how-a-release-shows-up-in-the-docs" title="Permanent link">&para;</a></h2>
 <p>The site is built with Material for MkDocs and deployed with <a href="https://github.com/jimporter/mike">mike</a> onto the <code>gh-pages</code> branch. GitHub Pages serves that branch (folder <code>/</code>). There is no custom domain. The site URL is <a href="https://kanzifucius.github.io/xr-rollout-controller/">https://kanzifucius.github.io/xr-rollout-controller/</a>.</p>
 <table>
