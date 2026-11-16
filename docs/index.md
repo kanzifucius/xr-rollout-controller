@@ -53,6 +53,13 @@ Public GHCR image and OCI Helm chart.
 
 <div markdown="1">
 
+**[CLI](cli.md)**  
+`xr-rollout` on the current context. The bare command is the terminal UI.
+
+</div>
+
+<div markdown="1">
+
 **[CRD](crd.md)**  
 `CompositionRollout` spec, status, and a sample manifest.
 

@@ -9,7 +9,9 @@
 #     (--prerelease, --latest=false) with the same notes and assets; Helm
 #     chart version is the tag without v and is not retagged onto a stable
 #     version or latest.
-# Docs for the same tag are published by docs.yml, not this file.
+# The same tag's GitHub Release also attaches the xr-rollout CLI binaries.
+# There is no separate CLI tag. Pre-release tags stay prerelease and are
+# not marked Latest. Docs for the same tag are published by docs.yml, not this file.
 name: Release
 
 on:
@@ -124,6 +126,26 @@ jobs:
           grep -F "${image}" dist/install.yaml
           test -s dist/compositionrollouts.crd.yaml
 
+      - name: Build xr-rollout binaries
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          build() {
+            local goos="$1" goarch="$2" out="$3"
+            CGO_ENABLED=0 GOOS="${goos}" GOARCH="${goarch}" \
+              go build -trimpath -ldflags="-s -w" -o "dist/${out}" ./cmd/xr-rollout
+          }
+          build linux amd64 xr-rollout-linux-amd64
+          build linux arm64 xr-rollout-linux-arm64
+          build darwin amd64 xr-rollout-darwin-amd64
+          build darwin arm64 xr-rollout-darwin-arm64
+          build windows amd64 xr-rollout-windows-amd64.exe
+          test -s dist/xr-rollout-linux-amd64
+          test -s dist/xr-rollout-linux-arm64
+          test -s dist/xr-rollout-darwin-amd64
+          test -s dist/xr-rollout-darwin-arm64
+          test -s dist/xr-rollout-windows-amd64.exe
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -138,6 +160,11 @@ jobs:
           assets=(
             dist/install.yaml
             dist/compositionrollouts.crd.yaml
+            dist/xr-rollout-linux-amd64
+            dist/xr-rollout-linux-arm64
+            dist/xr-rollout-darwin-amd64
+            dist/xr-rollout-darwin-arm64
+            dist/xr-rollout-windows-amd64.exe
           )
           if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber --repo "${GITHUB_REPOSITORY}"

@@ -108,7 +108,7 @@ docker pull ghcr.io/kanzifucius/xr-rollout-controller:latest
 
 ### Release manifests
 
-Each GitHub Release also attaches `install.yaml` (from `make build-installer`) and `compositionrollouts.crd.yaml`. `install.yaml` includes the CRDs, RBAC, and the controller Deployment pinned to the release image. It does not set `--environment` (the binary default is `dev`) and it does not include the ValidatingAdmissionPolicy. Use the Helm chart to set the environment and install the policy.
+Each GitHub Release also attaches `install.yaml` (from `make build-installer`), `compositionrollouts.crd.yaml`, and the `xr-rollout` binaries. `install.yaml` includes the CRDs, RBAC, and the controller Deployment pinned to the release image. It does not set `--environment` (the binary default is `dev`) and it does not include the ValidatingAdmissionPolicy. Use the Helm chart to set the environment and install the policy.
 
 `install.yaml` is built from `config/`. In that tree, `aggregationRule` on the XR ClusterRole is nested under `metadata`, which the API server rejects. The Helm chart places `aggregationRule` at the top level of the ClusterRole. Prefer the chart until that manifest is corrected.
 
@@ -118,6 +118,10 @@ Release assets are public with the repository. Download one and apply it:
 gh release download v1.2.3 --repo kanzifucius/xr-rollout-controller --pattern install.yaml
 kubectl apply -f install.yaml
 ```
+
+## CLI
+
+[`xr-rollout`](docs/cli.md) lists rollouts on the current kube context and appends triggers. With no subcommand it opens the terminal UI. Install the same binary as `kubectl-xr_rollout` to run `kubectl xr rollout`.
 
 ## CRD
 
@@ -135,6 +139,7 @@ Manual control is via `spec.triggers` (`Start` / `Approve` / `Resume` / `Abort`)
 
 ```
 api/v1alpha1/          CompositionRollout CRD types
+cmd/xr-rollout/        xr-rollout CLI and terminal UI
 internal/controller/   reconciler, watches, indexes
 internal/rollout/      pure state machine, canary, health, waves, triggers
 internal/xp/           unstructured Crossplane XR helpers
