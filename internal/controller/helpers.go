@@ -282,9 +282,6 @@ func overlapMessage(self *rolloutsv1alpha1.CompositionRollout, others []rollouts
 		if cluster != "" && other.Spec.Cluster != cluster {
 			continue
 		}
-		if cluster != "" && other.Spec.Cluster == self.Spec.Cluster && self.Spec.Cluster != "" {
-			return "cluster " + self.Spec.Cluster + " is claimed by another CompositionRollout"
-		}
 		if name, ok := compositionNamesOverlap(self.Spec.Compositions, other.Spec.Compositions); ok {
 			return "composition " + name + " is claimed by another CompositionRollout"
 		}

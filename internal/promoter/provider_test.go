@@ -17,9 +17,19 @@ limitations under the License.
 package promoter
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
+)
+
+const (
+	paymentsKubeconfig = "acc-payments"
+	platformKubeconfig = "acc-platform"
+	acceptanceEnv      = "acceptance"
 )
 
 func TestSecretClusterName(t *testing.T) {
@@ -43,6 +53,88 @@ func TestSecretClusterName(t *testing.T) {
 	secret.Labels = nil
 	if _, ok := secretClusterName(opts, secret); ok {
 		t.Fatal("secret without the label was selected")
+	}
+
+	secret.Labels = map[string]string{KubeconfigSecretLabel: "true"}
+	secret.Annotations = map[string]string{ClusterAnnotation: toCluster}
+	name, ok = secretClusterName(opts, secret)
+	if !ok || name != fromCluster {
+		t.Fatalf("client id = %q, ok = %v", name, ok)
+	}
+}
+
+func TestSecretLogicalCluster(t *testing.T) {
+	t.Parallel()
+	if ClusterAnnotation != "rollouts.platform.example.org/cluster" {
+		t.Fatalf("annotation = %s", ClusterAnnotation)
+	}
+	secret := &corev1.Secret{}
+	secret.Name = paymentsKubeconfig
+	secret.Annotations = map[string]string{ClusterAnnotation: toCluster}
+	opts := KubeconfigOptions{PerSecretClient: true}
+	if got := secretLogicalCluster(opts, secret); got != toCluster {
+		t.Fatalf("logical = %q", got)
+	}
+	opts.PerSecretClient = false
+	if got := secretLogicalCluster(opts, secret); got != paymentsKubeconfig {
+		t.Fatalf("remote logical = %q", got)
+	}
+	opts.PerSecretClient = true
+	secret.Annotations = nil
+	if got := secretLogicalCluster(opts, secret); got != paymentsKubeconfig {
+		t.Fatalf("unset annotation = %q", got)
+	}
+}
+
+func TestTwoSecretsShareOneLogicalCluster(t *testing.T) {
+	t.Parallel()
+	p := NewKubeconfigProvider(KubeconfigOptions{Namespace: "xr-rollout", PerSecretClient: true})
+	p.store(paymentsKubeconfig, &engagedCluster{logical: toCluster, environment: acceptanceEnv, cancel: func() {}})
+	p.store(platformKubeconfig, &engagedCluster{logical: toCluster, environment: acceptanceEnv, cancel: func() {}})
+	if _, err := p.Get(context.Background(), paymentsKubeconfig); err != nil {
+		t.Fatalf("payments: %v", err)
+	}
+	if _, err := p.Get(context.Background(), platformKubeconfig); err != nil {
+		t.Fatalf("platform: %v", err)
+	}
+	if p.clusters[paymentsKubeconfig] == p.clusters[platformKubeconfig] {
+		t.Fatal("two secrets share one client")
+	}
+	names := p.Names()
+	if len(names) != 1 || names[0] != toCluster {
+		t.Fatalf("names = %v", names)
+	}
+	if _, err := p.Get(context.Background(), toCluster); err != nil {
+		t.Fatalf("logical get: %v", err)
+	}
+}
+
+func TestParseFailureDoesNotEngage(t *testing.T) {
+	t.Parallel()
+	p := NewKubeconfigProvider(KubeconfigOptions{Namespace: "xr-rollout", PerSecretClient: true})
+	p.store(paymentsKubeconfig, &engagedCluster{logical: toCluster, environment: acceptanceEnv, cancel: func() {}})
+	p.rejectKubeconfig(paymentsKubeconfig, "xr-rollout", fmt.Errorf("read kubeconfig: bad"))
+	if _, err := p.Get(context.Background(), paymentsKubeconfig); !errors.Is(err, multicluster.ErrClusterNotFound) {
+		t.Fatalf("payments get: %v", err)
+	}
+	if p.CredentialFailure(paymentsKubeconfig) == "" {
+		t.Fatal("expected a parse failure")
+	}
+	p.store(platformKubeconfig, &engagedCluster{logical: toCluster, environment: acceptanceEnv, cancel: func() {}})
+	if _, err := p.Get(context.Background(), platformKubeconfig); err != nil {
+		t.Fatalf("platform: %v", err)
+	}
+	names := p.Names()
+	if len(names) != 1 || names[0] != toCluster {
+		t.Fatalf("names = %v", names)
+	}
+	env, engaged := p.Engagement(paymentsKubeconfig)
+	if engaged || env != "" {
+		t.Fatalf("payments engagement = %q, %v", env, engaged)
+	}
+	env, engaged = p.Engagement(platformKubeconfig)
+	if !engaged || env != acceptanceEnv {
+		t.Fatalf("platform engagement = %q, %v", env, engaged)
 	}
 }
 

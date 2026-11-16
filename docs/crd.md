@@ -9,6 +9,8 @@ XRs are in scope when `spec.crossplane.compositionRef.name` matches a listed com
 | Field | Role |
 |-------|------|
 | `compositions` | Composition names to govern. At least one. Optional [`xrSelector`](#which-xrs-a-composition-governs) narrows the fleet. |
+| `cluster` | Logical cluster and the promotion key. Required in hub mode. Empty in local mode. |
+| `kubeconfigSecretRef` | Hub mode only. Secret that holds the kubeconfig. `name` is required when the ref is set. `namespace` defaults to the controller namespace. Unset means the Secret name is `cluster`. |
 | `suspend` | Pauses every in-flight rollout and ignores new revisions until cleared. |
 | `dryRun` | When `true`, simulate the rollout and do not write XRs. Default `false`. See [Dry run](dry-run.md). |
 | `autoStart` | Start a rollout when a newer revision appears. Default `true`. |
@@ -144,4 +146,4 @@ Top-level conditions aggregate every composition: `Progressing`, `AwaitingApprov
 
 `kubectl get compositionrollouts` prints the first composition's phase.
 
-Two `CompositionRollout` objects must not claim the same composition. The example admission policy rejects the overlap, and the controller still pauses both if admission is bypassed.
+Two `CompositionRollout` objects must not claim the same composition. The example admission policy rejects the overlap, and the controller still pauses both if admission is bypassed. In hub mode two objects may share `spec.cluster` when their compositions differ and each names its own kubeconfig.

@@ -21,7 +21,7 @@ Kubebuilder controller that safely rolls out Crossplane **CompositionRevision** 
 |------|----------------|------------------------|
 | `local` | The controller and the composite resources (XRs) are on one cluster. Also the install on each spoke for `remote`. | Rolls XRs on this cluster. |
 | `remote` | Each cluster should roll its own XRs, and one place should open the next cluster. | Appends `Start` only. Each spoke runs `local`. |
-| `hub` | You want one object per cluster on the management cluster, and no controller on the spokes. | Keeps `CompositionRollout` and status here, and patches `compositionRevisionRef` on spoke XRs. |
+| `hub` | You want `CompositionRollout` objects on the management cluster, and no controller on the spokes. | Keeps the objects and status here, and patches `compositionRevisionRef` on spoke XRs. A rollout can name its own kubeconfig Secret. `spec.cluster` stays the promotion key. Hub mode only. |
 
 Walkthroughs: [local](docs/getting-started/local.md), [remote](docs/getting-started/remote.md), [hub](docs/getting-started/hub.md).
 

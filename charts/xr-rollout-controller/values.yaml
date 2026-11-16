@@ -34,6 +34,8 @@ metricsAggregateOnly: false
 mode: local
 
 # Kubeconfig Secrets for mode remote and mode hub. The chart does not create them.
+# Remote: one Secret per cluster, name equals the cluster name.
+# Hub: a CompositionRollout can name its own Secret. spec.cluster stays the promotion key.
 promoter:
   # Empty means the release namespace.
   secretNamespace: ""

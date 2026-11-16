@@ -42,10 +42,14 @@ func TestOverlapMessageScopesHubObjectsToOneCluster(t *testing.T) {
 	if got := overlapMessage(&self, others, "acc"); got != "" {
 		t.Fatalf("overlap = %q", got)
 	}
-	others = append(others, rolloutNamed("payments-acc-2", "acc", "cache"))
+	others = append(others, rolloutNamed("platform-acc", "acc", "cache"))
+	if got := overlapMessage(&self, others, "acc"); got != "" {
+		t.Fatalf("different composition on one cluster = %q", got)
+	}
+	others = append(others, rolloutNamed("payments-acc-2", "acc", "db"))
 	got := overlapMessage(&self, others, "acc")
 	if got == "" {
-		t.Fatal("expected overlap")
+		t.Fatal("expected composition overlap")
 	}
 	local := overlapMessage(&self, []rolloutsv1alpha1.CompositionRollout{
 		rolloutNamed("other", "dev", "db"),

@@ -32,6 +32,10 @@ const FieldIndexCompositionName = "spec.compositions"
 // FieldIndexCluster indexes CompositionRollout by spec.cluster.
 const FieldIndexCluster = "spec.cluster"
 
+// FieldIndexKubeconfig indexes CompositionRollout by the kubeconfig Secret name.
+// An unset spec.kubeconfigSecretRef indexes spec.cluster.
+const FieldIndexKubeconfig = "spec.kubeconfigSecretRef"
+
 func setupIndexes(mgr ctrl.Manager) error {
 	ctx := context.Background()
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &rolloutsv1alpha1.CompositionRollout{}, FieldIndexCompositionName, compositionNameIndex); err != nil {
@@ -39,6 +43,9 @@ func setupIndexes(mgr ctrl.Manager) error {
 	}
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &rolloutsv1alpha1.CompositionRollout{}, FieldIndexCluster, clusterNameIndex); err != nil {
 		return fmt.Errorf("index CompositionRollout cluster: %w", err)
+	}
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &rolloutsv1alpha1.CompositionRollout{}, FieldIndexKubeconfig, kubeconfigNameIndex); err != nil {
+		return fmt.Errorf("index CompositionRollout kubeconfig: %w", err)
 	}
 	return nil
 }
@@ -61,4 +68,16 @@ func clusterNameIndex(raw client.Object) []string {
 		return nil
 	}
 	return []string{cr.Spec.Cluster}
+}
+
+func kubeconfigNameIndex(raw client.Object) []string {
+	cr, ok := raw.(*rolloutsv1alpha1.CompositionRollout)
+	if !ok {
+		return nil
+	}
+	name, _ := kubeconfigRef(cr, "")
+	if name == "" {
+		return nil
+	}
+	return []string{name}
 }

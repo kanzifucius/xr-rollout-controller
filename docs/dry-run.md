@@ -4,6 +4,8 @@
 
 Leave the field off, or set it to `false`, for a real rollout. The default is `false`. One `CompositionRollout` can be a dry run while another object on the same controller still patches.
 
+In hub mode the dry run lists with the kubeconfig named on that object. A missing Secret pauses that object and leaves `wouldUpdate` empty.
+
 ```yaml
 spec:
   dryRun: true

@@ -272,7 +272,8 @@ func main() {
 			os.Exit(1)
 		}
 		provider := promoter.NewKubeconfigProvider(promoter.KubeconfigOptions{
-			Namespace: promoterSecretNamespace,
+			Namespace:       promoterSecretNamespace,
+			PerSecretClient: runHub,
 			ClusterOptions: []cluster.Option{
 				func(options *cluster.Options) {
 					options.Scheme = scheme
@@ -298,9 +299,10 @@ func main() {
 				FieldManager:         "xr-rollout-controller",
 			}
 			hub := &controller.RemoteReconciler{
-				Inner:    inner,
-				Clusters: provider,
-				Hub:      mgr.GetClient(),
+				Inner:     inner,
+				Clusters:  provider,
+				Hub:       mgr.GetClient(),
+				Namespace: promoterSecretNamespace,
 			}
 			if err := hub.SetupWithManager(mcMgr); err != nil {
 				setupLog.Error(err, "unable to create controller", "controller", "CompositionRolloutHub")

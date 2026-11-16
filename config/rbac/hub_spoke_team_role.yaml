@@ -1,0 +1,74 @@
+# Team split for hub mode. Each kubeconfig user patches only that team's XR types.
+# Bind the user to xr-rollout-hub (composition and CompositionRevision read) and
+# to the narrowed ClusterRole below. Do not bind xr-rollout-hub-xr-access to
+# these users. The hub ServiceAccount is not a subject here.
+# Copy the role once per team and per XR type.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xr-rollout-hub-payments
+rules:
+  - apiGroups: ["payments.example.org"]
+    resources: ["databases"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xr-rollout-hub-payments
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xr-rollout-hub-payments
+subjects:
+  - kind: User
+    name: xr-rollout-payments
+    apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xr-rollout-hub-payments-compositions
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xr-rollout-hub
+subjects:
+  - kind: User
+    name: xr-rollout-payments
+    apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: xr-rollout-hub-platform
+rules:
+  - apiGroups: ["platform.example.org"]
+    resources: ["caches"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xr-rollout-hub-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xr-rollout-hub-platform
+subjects:
+  - kind: User
+    name: xr-rollout-platform
+    apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: xr-rollout-hub-platform-compositions
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: xr-rollout-hub
+subjects:
+  - kind: User
+    name: xr-rollout-platform
+    apiGroup: rbac.authorization.k8s.io

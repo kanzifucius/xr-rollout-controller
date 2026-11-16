@@ -1,9 +1,11 @@
 {{- $mode := .Values.mode | default "local" }}
 {{- if or (eq $mode "remote") (eq $mode "hub") }}
 {{/*
-Kubeconfig Secrets are not created by this chart. Create one per cluster.
-The Secret name is the cluster name. The annotation is the promotion
-environment, and the two strings are not the same thing.
+Kubeconfig Secrets are not created by this chart.
+Remote mode: one Secret per cluster. The Secret name is the cluster name.
+Hub mode: a CompositionRollout can name its own Secret. spec.cluster stays
+the promotion key. Set rollouts.platform.example.org/cluster when several
+Secrets share one cluster. The environment annotation is not the cluster name.
 
 apiVersion: v1
 kind: Secret

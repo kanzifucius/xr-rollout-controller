@@ -45,6 +45,10 @@ const (
 	// EnvironmentAnnotation is the per-cluster promotion environment.
 	// It is not the Secret name. Cluster acc may be annotated acceptance.
 	EnvironmentAnnotation = "rollouts.platform.example.org/environment"
+	// ClusterAnnotation is the logical cluster a kubeconfig Secret targets.
+	// Hub mode reads it. When it is absent the Secret name is the cluster name.
+	// Remote mode ignores it.
+	ClusterAnnotation = "rollouts.platform.example.org/cluster"
 
 	cacheSyncTimeout = 30 * time.Second
 )
@@ -55,16 +59,22 @@ type KubeconfigOptions struct {
 	KubeconfigSecretLabel string
 	KubeconfigSecretKey   string
 	ClusterOptions        []cluster.Option
+	// PerSecretClient engages one client per Secret. The Secret name is the
+	// client id. ClusterAnnotation, when set, is the logical cluster.
+	// Leave it false for remote mode, where the Secret name is the cluster name.
+	PerSecretClient bool
 }
 
-// KubeconfigProvider engages one cluster per labelled kubeconfig Secret.
+// KubeconfigProvider engages one client per labelled kubeconfig Secret.
 // Secret creation order is not the promotion order.
+// In hub mode several Secrets may share one logical cluster.
 type KubeconfigProvider struct {
 	opts KubeconfigOptions
 	mgr  mcmanager.Manager
 
 	mu       sync.Mutex
 	clusters map[string]*engagedCluster
+	failures map[string]string
 	indexers []fieldIndex
 }
 
@@ -73,6 +83,7 @@ type engagedCluster struct {
 	cancel      context.CancelFunc
 	hash        string
 	environment string
+	logical     string
 }
 
 type fieldIndex struct {
@@ -92,33 +103,69 @@ func NewKubeconfigProvider(opts KubeconfigOptions) *KubeconfigProvider {
 	return &KubeconfigProvider{
 		opts:     opts,
 		clusters: map[string]*engagedCluster{},
+		failures: map[string]string{},
 	}
 }
 
-// Get returns an engaged cluster, or ErrClusterNotFound.
-func (p *KubeconfigProvider) Get(_ context.Context, clusterName string) (cluster.Cluster, error) {
+// Get returns the client engaged under name.
+// name is a Secret name, or a logical cluster when no Secret uses that name.
+// An exact Secret name wins. Several Secrets for one logical cluster share
+// that cluster for promotion; each Secret stays its own client.
+func (p *KubeconfigProvider) Get(_ context.Context, name string) (cluster.Cluster, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	engaged, ok := p.clusters[clusterName]
-	if !ok {
+	if engaged, ok := p.clusters[name]; ok {
+		return engaged.cluster, nil
+	}
+	ids := make([]string, 0, 1)
+	for id, engaged := range p.clusters {
+		if logicalName(id, engaged) == name {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
 		return nil, multicluster.ErrClusterNotFound
 	}
-	return engaged.cluster, nil
+	sort.Strings(ids)
+	return p.clusters[ids[0]].cluster, nil
 }
 
 // Environment returns the promotion environment annotated on the kubeconfig Secret.
-// A missing cluster or an empty annotation is ("", false).
-func (p *KubeconfigProvider) Environment(clusterName string) (string, bool) {
+// A missing client or an empty annotation is ("", false).
+func (p *KubeconfigProvider) Environment(name string) (string, bool) {
+	env, engaged := p.Engagement(name)
+	if !engaged || env == "" {
+		return "", false
+	}
+	return env, true
+}
+
+// Engagement reports whether client id is engaged and the environment annotation.
+// A missing Secret or a kubeconfig that will not parse is engaged=false.
+// An engaged Secret with an empty environment annotation is ("", true).
+func (p *KubeconfigProvider) Engagement(name string) (string, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	engaged, ok := p.clusters[clusterName]
-	if !ok || engaged.environment == "" {
+	engaged, ok := p.clusters[name]
+	if !ok {
 		return "", false
 	}
 	return engaged.environment, true
 }
 
+// CredentialFailure returns why client id did not engage, or "" when the
+// Secret is only missing.
+func (p *KubeconfigProvider) CredentialFailure(name string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.failures[name]
+}
+
 func (p *KubeconfigProvider) setEnvironment(name, environment string) {
+	p.setMetadata(name, environment, "")
+}
+
+func (p *KubeconfigProvider) setMetadata(name, environment, logical string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	engaged, ok := p.clusters[name]
@@ -126,6 +173,24 @@ func (p *KubeconfigProvider) setEnvironment(name, environment string) {
 		return
 	}
 	engaged.environment = environment
+	if logical != "" {
+		engaged.logical = logical
+	}
+}
+
+func (p *KubeconfigProvider) setFailure(name, message string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.failures == nil {
+		p.failures = map[string]string{}
+	}
+	p.failures[name] = message
+}
+
+func (p *KubeconfigProvider) clearFailure(name string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.failures, name)
 }
 
 // IndexField records an indexer and applies it to clusters already engaged.
@@ -151,17 +216,29 @@ func (p *KubeconfigProvider) SetupWithManager(mgr mcmanager.Manager) error {
 		Complete(p)
 }
 
-// Names returns engaged cluster names, sorted for stable logs.
+// Names returns engaged logical cluster names, sorted for stable logs.
+// A cluster is listed once at least one Secret resolves to it.
 // Callers must not use this order as the promotion order.
 func (p *KubeconfigProvider) Names() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	names := make([]string, 0, len(p.clusters))
-	for name := range p.clusters {
+	seen := map[string]struct{}{}
+	for id, engaged := range p.clusters {
+		seen[logicalName(id, engaged)] = struct{}{}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	return names
+}
+
+func logicalName(id string, engaged *engagedCluster) string {
+	if engaged.logical != "" {
+		return engaged.logical
+	}
+	return id
 }
 
 // Reconcile engages, replaces, or forgets the cluster named by a kubeconfig Secret.
@@ -174,6 +251,7 @@ func (p *KubeconfigProvider) Reconcile(ctx context.Context, req ctrl.Request) (c
 				if p.disengage(req.Name) {
 					logger.Info("disengaged cluster", "cluster", req.Name, "secret", req.Namespace+"/"+req.Name)
 				}
+				p.clearFailure(req.Name)
 			}
 			return ctrl.Result{}, nil
 		}
@@ -185,17 +263,21 @@ func (p *KubeconfigProvider) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
+	logical := secretLogicalCluster(p.opts, secret)
 	env := secretEnvironment(secret)
 	raw := secret.Data[p.opts.KubeconfigSecretKey]
 	hash := hashKubeconfig(raw)
 	if p.sameHash(name, hash) {
-		p.setEnvironment(name, env)
+		p.setMetadata(name, env, logical)
+		p.clearFailure(name)
 		return ctrl.Result{}, nil
 	}
 
 	cfg, err := restConfigFromKubeconfig(raw)
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("parse kubeconfig for cluster %s: %w", name, err)
+		p.rejectKubeconfig(name, secret.Namespace, err)
+		logger.Error(err, "kubeconfig will not parse", "secret", secret.Namespace+"/"+secret.Name)
+		return ctrl.Result{}, nil
 	}
 	cl, err := cluster.New(cfg, p.opts.ClusterOptions...)
 	if err != nil {
@@ -234,12 +316,18 @@ func (p *KubeconfigProvider) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, fmt.Errorf("engage cluster %s: %w", name, err)
 	}
 
-	previous := p.store(name, &engagedCluster{cluster: cl, cancel: cancel, hash: hash, environment: env})
-	if previous != nil {
+	previous := p.store(name, &engagedCluster{cluster: cl, cancel: cancel, hash: hash, environment: env, logical: logical})
+	if previous != nil && previous.cancel != nil {
 		previous.cancel()
 	}
-	logger.Info("engaged cluster", "cluster", name, "environment", env, "secret", secret.Namespace+"/"+secret.Name)
+	p.clearFailure(name)
+	logger.Info("engaged cluster", "cluster", logical, "environment", env, "secret", secret.Namespace+"/"+secret.Name)
 	return ctrl.Result{}, nil
+}
+
+func (p *KubeconfigProvider) rejectKubeconfig(name, namespace string, err error) {
+	p.disengage(name)
+	p.setFailure(name, fmt.Sprintf("kubeconfig Secret %s/%s will not parse: %v", namespace, name, err))
 }
 
 func (p *KubeconfigProvider) sameHash(name, hash string) bool {
@@ -275,7 +363,9 @@ func (p *KubeconfigProvider) disengage(name string) bool {
 	if !ok {
 		return false
 	}
-	engaged.cancel()
+	if engaged.cancel != nil {
+		engaged.cancel()
+	}
 	delete(p.clusters, name)
 	return true
 }
@@ -299,6 +389,15 @@ func secretClusterName(opts KubeconfigOptions, secret *corev1.Secret) (string, b
 		return "", false
 	}
 	return secret.Name, true
+}
+
+func secretLogicalCluster(opts KubeconfigOptions, secret *corev1.Secret) string {
+	if opts.PerSecretClient && secret.Annotations != nil {
+		if name := secret.Annotations[ClusterAnnotation]; name != "" {
+			return name
+		}
+	}
+	return secret.Name
 }
 
 func restConfigFromKubeconfig(kubeconfig []byte) (*rest.Config, error) {

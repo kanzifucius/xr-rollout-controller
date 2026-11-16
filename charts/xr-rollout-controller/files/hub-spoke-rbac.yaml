@@ -1,5 +1,8 @@
 # Bind both ClusterRoles to the user named in the spoke kubeconfig.
 # The User name xr-rollout-hub must match that kubeconfig user.
+# A team split uses config/rbac/hub_spoke_team_role.yaml instead of the
+# aggregate binding below. Keep this aggregate role for one user that
+# may patch every XR type.
 # Do not bind these to a ServiceAccount on the spoke.
 # This user does not get CompositionRollout. That object lives on the hub.
 apiVersion: rbac.authorization.k8s.io/v1
