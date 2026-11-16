@@ -1,0 +1,64 @@
+/* XR Rollout Controller docs — ink blue with a single copper accent.
+   Custom primary/accent are enabled via theme.palette.*.primary|accent: custom. */
+
+:root {
+  --md-primary-fg-color: #1b2a4a;
+  --md-primary-fg-color--light: #3d5a8a;
+  --md-primary-fg-color--dark: #10192e;
+  --md-accent-fg-color: #c47b2b;
+  --md-accent-fg-color--transparent: #c47b2b1a;
+  --md-typeset-a-color: #1f4e79;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 222;
+  --md-primary-fg-color: #8eb4e8;
+  --md-primary-fg-color--light: #c5d8f5;
+  --md-primary-fg-color--dark: #1b2a4a;
+  --md-accent-fg-color: #e0a15a;
+  --md-accent-fg-color--transparent: #e0a15a26;
+  --md-typeset-a-color: #b9d0f5;
+}
+
+/* Archify HTML embeds — full-bleed interactive diagrams inside Architecture pages. */
+.archify-embed {
+  position: relative;
+  width: 100%;
+  margin: 1.25rem 0 0.5rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  overflow: hidden;
+  background: #0d1117;
+  box-shadow: none;
+}
+
+.archify-embed iframe {
+  display: block;
+  width: 100%;
+  height: min(72vh, 820px);
+  border: 0;
+}
+
+.archify-caption {
+  margin: 0 0 1.5rem;
+  font-size: 0.85em;
+  color: var(--md-default-fg-color--light);
+}
+
+/* Landing section cards stay unboxed — just spacing for orientation grids. */
+.doc-map {
+  display: grid;
+  gap: 0.75rem 1.5rem;
+  margin: 1rem 0 1.5rem;
+}
+
+@media (min-width: 48rem) {
+  .doc-map {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.doc-map > div > strong {
+  display: block;
+  margin-bottom: 0.15rem;
+}
