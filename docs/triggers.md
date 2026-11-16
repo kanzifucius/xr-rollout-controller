@@ -28,6 +28,8 @@ spec:
       actor: ricardo@example.org
 ```
 
+Append that entry with `xr-rollout approve team-payments --composition platformdb.example.org --revision platformdb.example.org-9f8a2c1`. The command is a server-side apply of one trigger, field manager `xr-rollout-cli`. See [xr-rollout CLI](cli.md). A client-side apply of the whole `CompositionRollout` takes ownership of the trigger list, including a promoter `Start`.
+
 ## Admission
 
 The chart's ValidatingAdmissionPolicy allows `Start` and `Abort` for any caller who can update the object. `Approve` and `Resume` require the group `rollouts.platform.example.org:release-managers`. Approve, Resume, and Abort must set `revision`.

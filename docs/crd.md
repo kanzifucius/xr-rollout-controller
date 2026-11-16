@@ -2,6 +2,8 @@
 
 `CompositionRollout` is a cluster-scoped custom resource (`rollouts.platform.example.org/v1alpha1`). The short name is `xrollout`. One object covers a team's compositions. Each composition has its own revision stream and its own phase.
 
+In hub mode set `spec.cluster`. Leave `kubeconfigSecretRef` unset to use a Secret of that same name, or set `kubeconfigSecretRef.name` when this rollout needs its own Secret. Both are hub only. The sample below is a local-mode object: `spec.cluster` is empty.
+
 XRs are in scope when `spec.crossplane.compositionRef.name` matches a listed composition and `compositionUpdatePolicy` is `Manual`. An optional `xrSelector` narrows that set by namespace or labels.
 
 ## Spec
@@ -15,7 +17,7 @@ XRs are in scope when `spec.crossplane.compositionRef.name` matches a listed com
 | `dryRun` | When `true`, simulate the rollout and do not write XRs. Default `false`. See [Dry run](dry-run.md). |
 | `autoStart` | Start a rollout when a newer revision appears. Default `true`. |
 | `onNewRevision` | `Restart` (default) abandons the current target for a newer revision. `Queue` finishes the current rollout first. |
-| `canary` | How the first subset is chosen. See [Canary and promotion](canary.md). |
+| `canary` | How the first subset is chosen. See [Canary, soak, and waves](canary.md). |
 | `soak` | How long canaries must stay healthy. |
 | `promotion` | Per-environment policy after soak. See [Environment gate](environment.md). |
 | `waves` | Batch size, concurrency, and the pause between waves. |

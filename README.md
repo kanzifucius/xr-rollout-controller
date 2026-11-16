@@ -27,6 +27,8 @@ Walkthroughs: [local](docs/getting-started/local.md), [remote](docs/getting-star
 
 `remote` and `hub` use [sigs.k8s.io/multicluster-runtime](https://github.com/kubernetes-sigs/multicluster-runtime) v0.20.4-alpha.7. That module is not a GA multi-cluster API, so engagement, kubeconfig Secrets, and the hub layout can change. `local` does not use it.
 
+For `remote` and `hub`, the kubeconfig Secret needs a static token or a client certificate. A kubeconfig that uses `exec` (kubelogin, Azure CLI, Entra ID) will not work: the controller image cannot run that command.
+
 Design: [docs/xr-rollout-controller-plan.md](docs/xr-rollout-controller-plan.md)  
 Implementation phases: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md)
 

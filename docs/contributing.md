@@ -23,7 +23,7 @@ mkdocs build --strict
 mkdocs serve   # http://127.0.0.1:8000
 ```
 
-Site layout (Material tabs): **Home → Install → CompositionRollout → Architecture → Releases → Contributing**.
+Site tabs: **Home → Getting started (Local mode, Remote mode, Hub mode) → Install → CLI → CompositionRollout → Architecture → Releases → Contributing**.
 
 - Theme tokens and Archify iframe styles: `docs/stylesheets/extra.css`
 - Architecture diagrams: standalone HTML under `docs/architecture/` plus caption pages that embed them

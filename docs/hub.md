@@ -1,10 +1,10 @@
-# Hub
+# Hub reference
 
-Remote and hub use [sigs.k8s.io/multicluster-runtime](https://github.com/kubernetes-sigs/multicluster-runtime) v0.20.4-alpha.7. It is not a GA multi-cluster API. Engagement, kubeconfig Secrets, and the hub layout can change. Local mode does not use it.
+`--mode=hub` keeps every `CompositionRollout` and its status on this install. `spec.cluster` is the logical cluster and the promotion key. The process lists Compositions, CompositionRevisions, and composite resources with the kubeconfig that object names, and it server-side applies `spec.crossplane.compositionRevisionRef.name` on Manual XRs. Field manager `xr-rollout-controller`. Several objects may share one `spec.cluster` when each governs different compositions.
 
-`--mode=hub` keeps every `CompositionRollout` and its status on this install. `spec.cluster` is the logical cluster. The process lists Compositions, CompositionRevisions, and composite resources (XRs) with the kubeconfig that object names, and it server-side applies `spec.crossplane.compositionRevisionRef.name` on Manual XRs. Field manager `xr-rollout-controller`. Several objects may share one `spec.cluster` when each governs different compositions.
+Remote and hub use [sigs.k8s.io/multicluster-runtime](https://github.com/kubernetes-sigs/multicluster-runtime) v0.20.4-alpha.7. It is not a GA multi-cluster API. Kubeconfig Secrets and the hub layout can change. Local mode does not use it.
 
-Setup is in [Getting started: hub](getting-started/hub.md).
+Setup, the Secret manifests, and `spec.kubeconfigSecretRef` are in [Hub mode](getting-started/hub.md). When `spec.kubeconfigSecretRef` is unset, the Secret name is `spec.cluster`. Set the ref to use another Secret. That is hub mode only.
 
 ## Cluster and environment
 

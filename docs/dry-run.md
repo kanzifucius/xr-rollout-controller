@@ -23,7 +23,7 @@ spec:
 | Field | Meaning |
 |---|---|
 | `active` | `spec.dryRun` is true. |
-| `promotion` | The policy for this cluster's `--environment`. |
+| `promotion` | The policy for this rollout's environment. Local mode and a remote spoke use `--environment`. Hub mode uses the Secret annotation `rollouts.platform.example.org/environment`. |
 | `wouldUpdate` | Manual XRs that would move, in patch order. `stage` is `Canary` or `Wave`. |
 | `completedAt` | When the simulation finished. |
 

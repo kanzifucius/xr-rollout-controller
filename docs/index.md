@@ -5,19 +5,25 @@ search:
 
 # XR Rollout Controller
 
-The controller rolls a fleet of Crossplane **v2** composite resources (XRs) onto a new **CompositionRevision** in a fixed order: canary, soak, environment gate, then batched waves.
+The controller rolls Crossplane v2 Manual composite resources (XRs) onto a new CompositionRevision: canary, soak, an environment gate, then waves. The only field it writes is `spec.crossplane.compositionRevisionRef`. A failure pauses the rollout. Already-moved XRs stay on the new revision.
 
-It governs XRs whose `compositionUpdatePolicy` is **Manual**. The only field it writes is `spec.crossplane.compositionRevisionRef`. Automatic XRs keep moving on their own and are counted as unmanaged.
+Pick a mode before you install. `local` is the default. `remote` and `hub` use [sigs.k8s.io/multicluster-runtime](https://github.com/kubernetes-sigs/multicluster-runtime) v0.20.4-alpha.7. That module is not a GA multi-cluster API, so kubeconfig Secrets and the hub layout can change. `local` does not use it.
+
+| Mode | Pick it when | What this install does |
+|------|----------------|------------------------|
+| `local` | The controller and the XRs are on one cluster. Also the install on each spoke for `remote`. | Rolls XRs on this cluster. |
+| `remote` | Each cluster should roll its own XRs, and one management install should open the next cluster. | Appends `Start` only. Each spoke runs `local`. |
+| `hub` | `CompositionRollout` objects and their status should stay on the management cluster, with no controller on the spokes. | Patches `compositionRevisionRef` on spoke XRs. A rollout can name its own kubeconfig Secret. Hub mode only. |
 
 Set `spec.dryRun: true` to simulate that rollout without writing the field. See [Dry run](dry-run.md).
 
 ## What it does
 
-1. **Watch** a cluster-scoped `CompositionRollout` and new `CompositionRevision` objects for the compositions it names.
-2. **Canary** a frozen subset (label, count, or percent) and patch those XRs first.
-3. **Soak** until the canaries hold `Ready=True` and `Synced=True` for the configured duration.
-4. **Gate** promotion with the policy for this cluster's `--environment` (`AutoPromote` or `ManualApproval`).
-5. **Wave** the remainder in bounded batches. A failure pauses the rollout. Nothing is rolled back.
+1. Watch a cluster-scoped `CompositionRollout` and new `CompositionRevision` objects for the compositions it names.
+2. Canary a frozen subset (label, count, or percent) and patch those XRs first.
+3. Soak until the canaries hold `Ready=True` and `Synced=True` for the configured duration.
+4. Gate the waves with `AutoPromote` or `ManualApproval`. In `local`, and on each `remote` spoke, the key is that pod's `--environment`. In `hub`, the key is the annotation `rollouts.platform.example.org/environment` on the kubeconfig Secret.
+5. Wave the remainder in bounded batches.
 
 ## Where to start
 
@@ -25,22 +31,22 @@ Set `spec.dryRun: true` to simulate that rollout without writing the field. See 
 
 <div markdown="1">
 
-**[Local](getting-started/local.md)**  
-Controller and XRs on one cluster.
+**[Local mode](getting-started/local.md)**  
+Default. Controller and XRs on one cluster. The spoke install for remote.
 
 </div>
 
 <div markdown="1">
 
-**[Remote](getting-started/remote.md)**  
-Spokes roll their own XRs. This install appends Start.
+**[Remote mode](getting-started/remote.md)**  
+Alpha. Spokes roll their own XRs. This install only appends Start.
 
 </div>
 
 <div markdown="1">
 
-**[Hub](getting-started/hub.md)**  
-Objects stay here. Spokes keep Crossplane and the XRs.
+**[Hub mode](getting-started/hub.md)**  
+Alpha. Objects stay here. This install patches spoke XRs. No controller on the spokes.
 
 </div>
 
@@ -60,14 +66,14 @@ Public GHCR image and OCI Helm chart.
 
 <div markdown="1">
 
-**[CRD](crd.md)**  
-`CompositionRollout` spec, status, and a sample manifest.
+**[CompositionRollout](crd.md)**  
+Spec, status, and a sample manifest.
 
 </div>
 
 <div markdown="1">
 
-**[Canary and promotion](canary.md)**  
+**[Canary, soak, and waves](canary.md)**  
 Selection, soak, waves, and pause.
 
 </div>
@@ -75,7 +81,7 @@ Selection, soak, waves, and pause.
 <div markdown="1">
 
 **[Environment gate](environment.md)**  
-One manifest, per-cluster `--environment`.
+`--environment` on a spoke. The Secret annotation in hub.
 
 </div>
 
@@ -118,9 +124,8 @@ The longer design note stays in the repository: [`docs/xr-rollout-controller-pla
 
 | Version / alias | Meaning |
 |-----------------|---------|
-| `latest` | Docs for the newest stable SemVer tag (default after the first release). Pre-releases do not move this alias. |
-| `1.2.3` | Immutable docs for stable tag `v1.2.3` (the leading `v` is removed) |
-| `1.2.3-rc.1` | Docs for a pre-release tag such as `v1.2.3-rc.1`. `latest` stays on the last stable version. |
-| `dev` | Docs from the tip of `main` (may change between releases) |
+| `dev` | Docs from the tip of `main`. The site root redirects here until a stable release publishes `latest`. |
+| `0.1.0-rc.5` | Docs for pre-release tag `v0.1.0-rc.5`. A pre-release does not become `latest`. |
+| `latest` | Not published yet. It will track the newest stable tag once one exists. |
 
-Expected URL: [https://kanzifucius.github.io/xr-rollout-controller/](https://kanzifucius.github.io/xr-rollout-controller/).
+The site root redirects to [dev](https://kanzifucius.github.io/xr-rollout-controller/dev/).

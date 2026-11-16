@@ -1,6 +1,6 @@
 # XR Rollout Controller documentation site (Material for MkDocs + mike versioning).
 site_name: XR Rollout Controller
-site_description: Canary rollouts of Crossplane CompositionRevisions onto Manual composite resources.
+site_description: Roll Crossplane v2 CompositionRevisions onto Manual composite resources. Local is the default; remote and hub are alpha.
 site_url: https://kanzifucius.github.io/xr-rollout-controller/
 site_author: XR Rollout Controller maintainers
 repo_url: https://github.com/kanzifucius/xr-rollout-controller
@@ -72,9 +72,13 @@ plugins:
       lang: en
       separator: '[\s\-,:!=\[\]()"/]+|(?!\b)(?=[A-Z][a-z])|\.(?!\d)|&[lg]t;'
   - mike:
-      # Symlink aliases (latest → 1.2.3); falls back to copy on platforms without symlink support.
+      # Symlink aliases; falls back to copy on platforms without symlink support.
+      # `latest` is not published until a stable tag exists. Canonical links use
+      # `dev`, which is on the site. Point this at `latest` again in the change
+      # that publishes the first stable docs version, or that version also
+      # canonicalises to /dev/.
       alias_type: symlink
-      canonical_version: latest
+      canonical_version: dev
       version_selector: true
 
 extra:
@@ -106,17 +110,17 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Getting started:
-      - Local: getting-started/local.md
-      - Remote: getting-started/remote.md
-      - Hub: getting-started/hub.md
+      - Local mode: getting-started/local.md
+      - Remote mode (alpha): getting-started/remote.md
+      - Hub mode (alpha): getting-started/hub.md
   - Install: install.md
   - CLI: cli.md
   - CompositionRollout:
-      - The CRD: crd.md
-      - Canary and promotion: canary.md
+      - CompositionRollout: crd.md
+      - Canary, soak, and waves: canary.md
       - Environment gate: environment.md
       - Promotion across clusters: promotion.md
-      - Hub: hub.md
+      - Hub reference: hub.md
       - Triggers: triggers.md
       - Dry run: dry-run.md
   - Architecture:

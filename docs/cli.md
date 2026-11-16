@@ -1,10 +1,12 @@
-# CLI
+# xr-rollout CLI
 
-`xr-rollout` reads `CompositionRollout` and `PromotionPipeline` on the current cluster. It uses the current kube context and kubeconfig. `--context` and `--kubeconfig` select a different one. Permission is the caller's RBAC.
+`xr-rollout` with no subcommand opens the terminal UI on the current kube context. `start`, `approve`, `resume`, `abort`, and `skip` write immediately and do not ask. `list`, `get`, and `pipeline` only read. In the UI, `s`, `a`, `r`, `x`, and `k` ask first: `y` appends the trigger, `n` or Esc cancels, and nothing is written.
 
-The CLI does not hold a spoke kubeconfig. It does not patch composite resources. A trigger is a server-side apply of one `spec.triggers` entry, field manager `xr-rollout-cli`. Other entries stay, including ones written earlier by this command.
+`list`, `get`, and `pipeline status` reload every 30 seconds when `--watch` is set. The UI reloads every 30 seconds. There is no flag for a different interval.
 
-With no subcommand, `xr-rollout` opens the terminal UI. Subcommands do not prompt.
+Install the same binary under the name `kubectl-xr_rollout` (an underscore) to run `kubectl xr rollout`. A hyphenated name is not picked up as a kubectl plugin.
+
+The CLI uses the current context. `--context` and `--kubeconfig` select a different one. Permission is the caller's RBAC. It reads `CompositionRollout` and `PromotionPipeline` on that cluster. It does not hold a spoke kubeconfig and it does not patch composite resources. A trigger is a server-side apply of one entry, field manager `xr-rollout-cli`. Other entries stay.
 
 ## Install
 
@@ -38,6 +40,7 @@ The binary is `bin/xr-rollout`. The symlink above is the same file.
 
 | Command | Effect |
 |---------|--------|
+| `xr-rollout` | Terminal UI. Asks before it writes. |
 | `xr-rollout list` | Table of rollouts on this context. |
 | `xr-rollout get NAME` | One rollout: phase, pause reason, canary, revision, cluster. |
 | `xr-rollout pipeline status [NAME]` | Pipeline hops. `xr-rollout pipeline` prints the same status. |

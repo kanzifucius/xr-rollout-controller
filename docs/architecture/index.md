@@ -1,6 +1,6 @@
 # Architecture
 
-The controller is one manager process. It watches `CompositionRollout`, `CompositionRevision`, and the composite resource types those compositions produce, then patches Manual XRs onto a target revision.
+These diagrams are one controller applying a rollout: watch `CompositionRollout` and `CompositionRevision`, then patch Manual XRs. That is [local mode](../getting-started/local.md), and it is also what [hub mode](../getting-started/hub.md) does to spoke XRs from the management cluster. [Remote mode](../getting-started/remote.md) does not patch XRs. The management install appends `Start`, and each spoke runs the local controller drawn here.
 
 ## Diagrams
 
@@ -16,8 +16,8 @@ The diagrams are generated from repository-backed Archify candidates under `.arc
 
 ## What the pages leave in prose
 
-- [The CRD](../crd.md) lists every spec and status field.
-- [Canary and promotion](../canary.md) covers selection, soak, and waves.
+- [CompositionRollout](../crd.md) lists every spec and status field.
+- [Canary, soak, and waves](../canary.md) covers selection, soak, and waves.
 - [Triggers](../triggers.md) covers Start, Resume, and Abort as well as Approve.
 
 The design note in git is [`docs/xr-rollout-controller-plan.md`](https://github.com/kanzifucius/xr-rollout-controller/blob/main/docs/xr-rollout-controller-plan.md).

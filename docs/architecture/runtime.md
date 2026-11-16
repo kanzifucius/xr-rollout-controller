@@ -13,4 +13,6 @@ How an install reaches the reconciler, how a new CompositionRevision wakes it, a
   <a href="../xr-rollout-runtime.html">Open standalone HTML</a>.
 </p>
 
+In remote mode the management install is not this patch path. It appends `Start` on the spoke object.
+
 The Helm values and image tags are in [Install](../install.md).
